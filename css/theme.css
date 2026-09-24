@@ -1,0 +1,71 @@
+/* Material 3 tokens from Howl-2.0.1 app/src/main/java/com/example/howl/ui/theme/Color.kt.
+   Dark is the default (as in the app's screenshots); light follows the system setting. */
+:root {
+  color-scheme: dark;
+  --primary: #CEBDFE;
+  --on-primary: #35275D;
+  --primary-container: #4C3E76;
+  --on-primary-container: #E8DDFF;
+  --secondary: #CBC3DC;
+  --secondary-container: #494458;
+  --on-secondary-container: #E8DEF8;
+  --tertiary: #E89BB4;
+  --error: #FFB4AB;
+  --on-error: #690005;
+  --error-container: #93000A;
+  --on-error-container: #FFDAD6;
+  --background: #141318;
+  --on-background: #E6E1E9;
+  --surface: #141318;
+  --on-surface: #E6E1E9;
+  --on-surface-variant: #CAC4CF;
+  --outline: #938F99;
+  --outline-variant: #48454E;
+  --inverse-surface: #E6E1E9;
+  --inverse-on-surface: #322F35;
+  --surface-container-lowest: #0F0D13;
+  --surface-container-low: #1C1B20;
+  --surface-container: #211F24;
+  --surface-container-high: #2B292F;
+  --surface-container-highest: #36343A;
+
+  --meter-a: #FFA000;
+  --meter-b: #FFEB00;
+  --estop: #E5192F;
+  --estop-text: #FFFFFF;
+  --danger-text: #D83A52;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --primary: #411A7F;
+    --on-primary: #F2F2F2;
+    --primary-container: #CBB3FF;
+    --on-primary-container: #201047;
+    --secondary: #615B71;
+    --secondary-container: #D3C0F2;
+    --on-secondary-container: #1D192B;
+    --tertiary: #990005;
+    --error: #BA1A1A;
+    --on-error: #FFFFFF;
+    --error-container: #FFDAD6;
+    --on-error-container: #410002;
+    --background: #F3F3F7;
+    --on-background: #1C1B20;
+    --surface: #F3F3F7;
+    --on-surface: #1C1B20;
+    --on-surface-variant: #48454E;
+    --outline: #79757F;
+    --outline-variant: #CAC4CF;
+    --inverse-surface: #322F35;
+    --inverse-on-surface: #F5EFF7;
+    --surface-container-lowest: #FFFFFF;
+    --surface-container-low: #F8F2FA;
+    --surface-container: #F2ECF4;
+    --surface-container-high: #ECE6EE;
+    --surface-container-highest: #E6E1E9;
+    --meter-a: #E08600;
+    --meter-b: #C9B800;
+  }
+}

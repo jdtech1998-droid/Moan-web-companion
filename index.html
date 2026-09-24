@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141318">
+  <title>Howl Web Companion</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23CEBDFE' d='M4 2l4 5h8l4-5v9c0 5-4 11-8 11S4 16 4 11z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Power header, as on the Android app -->
+    <header class="power-header">
+      <div class="channel" data-channel="0">
+        <div class="power-value"><span class="power-number" id="powerA">0</span></div>
+        <div class="power-max" id="maxA"></div>
+        <div class="power-buttons">
+          <button class="btn-tonal square" data-power="0" data-delta="-1" aria-label="Decrease A"><span class="sym">−</span><span>A</span></button>
+          <button class="btn-tonal square" data-power="0" data-delta="1" aria-label="Increase A"><span class="sym">+</span><span>A</span></button>
+        </div>
+      </div>
+      <div class="meters" aria-hidden="true">
+        <div class="meter"><div class="meter-fill a" id="meterA"></div></div>
+        <div class="meter"><div class="meter-fill b" id="meterB"></div></div>
+      </div>
+      <div class="channel" data-channel="1">
+        <div class="power-value"><span class="power-number" id="powerB">0</span></div>
+        <div class="power-max" id="maxB"></div>
+        <div class="power-buttons">
+          <button class="btn-tonal square" data-power="1" data-delta="-1" aria-label="Decrease B"><span class="sym">−</span><span>B</span></button>
+          <button class="btn-tonal square" data-power="1" data-delta="1" aria-label="Increase B"><span class="sym">+</span><span>B</span></button>
+        </div>
+      </div>
+
+      <div class="header-row">
+        <button class="btn-tonal pill wide" id="muteBtn" aria-pressed="false">
+          <svg viewBox="0 0 24 24" class="icon" id="muteIcon"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path class="mute-x" d="M16 9l5 5m0-5l-5 5" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+          <span id="muteLabel">Muted</span>
+        </button>
+        <button class="btn-tonal pill" id="playBtn" aria-label="Play or pause generator">
+          <svg viewBox="0 0 24 24" class="icon"><path id="playIconPath" d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+
+      <div class="freq-range">
+        <span id="freqMinLabel">10Hz</span>
+        <div class="dual-range">
+          <div class="dual-track"><div class="dual-fill" id="freqFill"></div></div>
+          <input type="range" id="freqMin" min="1" max="200" step="1" value="10" aria-label="Minimum output frequency">
+          <input type="range" id="freqMax" min="1" max="200" step="1" value="100" aria-label="Maximum output frequency">
+        </div>
+        <span id="freqMaxLabel">100Hz</span>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" class="tab" data-tab="remote" aria-selected="true">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M12 3a9 9 0 00-9 9h2a7 7 0 0114 0h2a9 9 0 00-9-9zm0 4a5 5 0 00-5 5h2a3 3 0 016 0h2a5 5 0 00-5-5zm-1 6v8h2v-8z"/></svg>
+        <span>Remote</span>
+      </button>
+      <button role="tab" class="tab" data-tab="generator" aria-selected="false">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M2 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0M2 7c2-4 4-4 6 0s4 4 6 0 4-4 6 0M2 17c2-4 4-4 6 0s4 4 6 0 4-4 6 0" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+        <span>Generator</span>
+      </button>
+      <button role="tab" class="tab" data-tab="settings" aria-selected="false">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M19.4 13a7.5 7.5 0 000-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 00-1.7-1L15 3.3h-4l-.4 2.6a7.6 7.6 0 00-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 000 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 001.7 1l.4 2.6h4l.4-2.6a7.6 7.6 0 001.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z" transform="translate(-1 0)"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <main class="content">
+      <!-- REMOTE -->
+      <section class="panel" id="tab-remote" role="tabpanel">
+        <div class="role-toggle" id="roleToggle">
+          <button class="role" data-role="rider"><strong>I'm the Rider</strong><small>Wear the Coyote, share a code</small></button>
+          <button class="role" data-role="driver"><strong>I'm the Driver</strong><small>Take control with a code</small></button>
+        </div>
+
+        <div class="status-banner" id="statusBanner"><span class="dot"></span><span id="statusText">Ready to start session</span></div>
+
+        <!-- Rider -->
+        <div id="riderPanel" hidden>
+          <div class="card" id="riderIdle">
+            <p class="muted">Connect your Coyote 3 below first, then create a code and send it to your Driver. Power and MAX start at 0 every session.</p>
+            <button class="btn-filled block" id="riderStart">Generate Session Code</button>
+          </div>
+          <div id="riderActive" hidden>
+            <div class="card code-card">
+              <div class="label">Session code</div>
+              <div class="code-row">
+                <span class="session-code" id="sessionCode">········</span>
+                <button class="btn-tonal small" id="copyCode">Copy</button>
+              </div>
+              <button class="btn-text danger" id="riderStop">Cancel Session</button>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Your MAX</div>
+              <p class="muted small">The Driver can never go above these. Lowering one pulls live power down at once.</p>
+              <div class="max-row"><span>A</span><input type="range" min="0" max="200" value="0" id="riderMaxA"><output id="riderMaxAOut">0</output></div>
+              <div class="max-row"><span>B</span><input type="range" min="0" max="200" value="0" id="riderMaxB"><output id="riderMaxBOut">0</output></div>
+            </div>
+
+            <div class="feedback-grid" id="feedbackGrid"></div>
+          </div>
+        </div>
+
+        <!-- Driver -->
+        <div id="driverPanel" hidden>
+          <div class="card" id="driverIdle">
+            <label class="field">
+              <span class="label">8-Character Rider Code</span>
+              <input id="driverCode" maxlength="8" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. 3fa9c21b">
+            </label>
+            <button class="btn-filled block" id="driverStart">Join Session</button>
+          </div>
+          <div id="driverActive" hidden>
+            <div class="card row-between">
+              <div>
+                <div class="label">Rider's MAX</div>
+                <div class="rider-max"><span>A <b id="riderMaxShowA">–</b></span><span>B <b id="riderMaxShowB">–</b></span></div>
+              </div>
+              <button class="btn-text danger" id="driverStop">Disconnect</button>
+            </div>
+            <div class="card">
+              <div class="card-title">Rider feedback</div>
+              <div id="pinnedFeed"></div>
+              <ul class="feed" id="feedbackFeed"><li class="muted small empty">Nothing yet.</li></ul>
+            </div>
+            <p class="muted small center">Use the power buttons above and the <a href="#" data-goto="generator">Generator</a> to drive.</p>
+          </div>
+        </div>
+
+        <button class="estop" id="estopBtn" hidden>E-STOP</button>
+      </section>
+
+      <!-- GENERATOR -->
+      <section class="panel" id="tab-generator" role="tabpanel" hidden>
+        <div class="gen-grid" id="genGrid"></div>
+        <div class="gen-actions">
+          <button class="btn-tonal pill" id="genPlay" aria-label="Play or pause"><svg viewBox="0 0 24 24" class="icon"><path id="genPlayPath" d="M8 5v14l11-7z"/></svg></button>
+          <button class="btn-tonal pill" id="genRandom">
+            <svg viewBox="0 0 24 24" class="icon"><path d="M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zm0 2v14h14V5zm2.5 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm9 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-4.5 4a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-4.5 4a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm9 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>
+            <span>Random</span>
+          </button>
+        </div>
+        <label class="switch-row">
+          <span>Automatically change parameters</span>
+          <input type="checkbox" class="switch" id="genAuto">
+        </label>
+        <p class="muted small" id="genHint"></p>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="panel" id="tab-settings" role="tabpanel" hidden>
+        <div class="card">
+          <div class="card-title">Power</div>
+          <div class="setting"><span>Power limit A (when not a Rider)</span><input type="number" min="0" max="200" id="setLimitA"></div>
+          <div class="setting"><span>Power limit B (when not a Rider)</span><input type="number" min="0" max="200" id="setLimitB"></div>
+          <div class="setting"><span>Power step</span><input type="number" min="1" max="20" id="setStep"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Coyote 3</div>
+          <div class="setting"><span>Frequency balance A</span><input type="number" min="0" max="255" id="setFbA"></div>
+          <div class="setting"><span>Frequency balance B</span><input type="number" min="0" max="255" id="setFbB"></div>
+          <div class="setting"><span>Intensity balance A</span><input type="number" min="0" max="255" id="setIbA"></div>
+          <div class="setting"><span>Intensity balance B</span><input type="number" min="0" max="255" id="setIbB"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Remote Play</div>
+          <label class="field"><span class="label">Relay URL</span><input id="setRelay" spellcheck="false"></label>
+          <button class="btn-text" id="resetRelay">Reset to default</button>
+        </div>
+        <div class="card">
+          <div class="card-title">About</div>
+          <p class="muted small">A free web companion to the Howl Android app. It pairs with Howl's Remote Play through the same relay, so the web and the phone app can drive each other.</p>
+          <p class="muted small">Coyote Bluetooth needs Chrome or Edge on desktop or Android. iPhone browsers and Firefox can still be a Driver.</p>
+          <p class="muted small">Keep this tab open and visible during a session: browsers slow down hidden tabs.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Device bar -->
+    <footer class="device-bar">
+      <svg viewBox="0 0 24 24" class="wolf" aria-hidden="true"><path d="M4 2l4 5h8l4-5v9c0 5-4 11-8 11S4 16 4 11z"/><circle cx="9" cy="12" r="1.3" fill="var(--inverse-surface)"/><circle cx="15" cy="12" r="1.3" fill="var(--inverse-surface)"/><path d="M10.5 16h3l-1.5 1.5z" fill="var(--inverse-surface)"/></svg>
+      <span class="device-status" id="deviceStatus">Disconnected</span>
+      <button class="btn-tonal pill" id="connectBtn">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M7 7l10 10-5 5V2l5 5L7 17" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>
+        <span id="connectLabel">Connect</span>
+      </button>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

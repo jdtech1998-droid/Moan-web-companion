@@ -1,0 +1,9 @@
+{
+  "name": "howl-web-companion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/protocol.test.js test/stream.test.js",
+    "serve": "node serve.js"
+  }
+}
