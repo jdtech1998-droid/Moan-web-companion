@@ -1,8 +1,10 @@
-# Howl Web Companion
+# Moan Web Companion
 
-A free, browser-based companion to the [Howl Android app](https://github.com/jdtech1998-droid/Howl-2.0.1). It has the look and feel of the phone app and supports Howl's **Remote Play**, so a browser and a phone (or two browsers) can pair and drive each other.
+Moan is a free, browser-based companion that works with **Remote Play** in the [Howl Android app](https://github.com/jdtech1998-droid/Howl-2.0.1). It has the look and feel of the phone app, so a browser and a phone (or two browsers) can pair and drive each other.
 
-**Live:** https://jdtech1998-droid.github.io/Howl-web-companion/
+Moan is an independent project and is not affiliated with [Howl](https://github.com/Amethyst-Sysadmin/Howl). Parts of it are ported from Howl under the MIT License; see [LICENSE](LICENSE).
+
+**Live:** https://jdtech1998-droid.github.io/Moan-web-companion/
 
 ## What it does
 

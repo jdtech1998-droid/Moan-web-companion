@@ -11,7 +11,7 @@ const $ = id => document.getElementById(id);
 
 // ---- Settings (per browser) ---------------------------------------------------------------------
 
-const STORAGE_KEY = 'howl-web-companion';
+const STORAGE_KEY = 'moan-web-companion';
 const DEFAULT_SETTINGS = {
   role: 'rider',
   limits: [70, 70], // local power limits, like Howl's default; a Rider session uses its own MAX instead
