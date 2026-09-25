@@ -9,6 +9,8 @@ import { FEEDBACK_PRESETS, RIDER_ESTOP_PRESET, isSafety, isStop } from './feedba
 import { PulseHistory, PulseChart, CHART_MODES, CHART_STYLES } from './pulsechart.js';
 import { Manual, MANUAL_DEFAULTS, SMOOTHING_RANGE, CENTER_RATE_RANGE } from './manual.js';
 import { Touchpad } from './touchpad.js';
+import { FUNSCRIPT_DEFAULTS, AXIS_NAMES, isRotationAxis } from './funscript.js';
+import { Player, Recorder, openFile, writeHWL, PLAYER_DEFAULTS, SPEED_RANGE as PLAYBACK_SPEED_RANGE, FINE_TUNE_RANGE } from './player.js';
 
 const $ = id => document.getElementById(id);
 
@@ -22,6 +24,9 @@ const DEFAULT_SETTINGS = {
   autoDelay: [120, 120], // seconds between auto-increase steps, per channel (Howl's default)
   chartStyle: 'Point',
   manual: { ...MANUAL_DEFAULTS },
+  player: { ...PLAYER_DEFAULTS },
+  funscript: { ...FUNSCRIPT_DEFAULTS },
+  showFunscriptMeters: true,
   balance: { frequencyBalanceA: 200, frequencyBalanceB: 200, intensityBalanceA: 0, intensityBalanceB: 0 },
   relayUrl: DEFAULT_RELAY_URL,
   freqRange: [10, 100], // output frequency range, Hz
@@ -31,7 +36,8 @@ const DEFAULT_SETTINGS = {
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
-    return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance }, manual: { ...DEFAULT_SETTINGS.manual, ...saved.manual } };
+    return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance }, manual: { ...DEFAULT_SETTINGS.manual, ...saved.manual },
+      player: { ...DEFAULT_SETTINGS.player, ...saved.player }, funscript: { ...DEFAULT_SETTINGS.funscript, ...saved.funscript } };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }
@@ -63,7 +69,10 @@ const stream = new RemoteStream();
 const encoders = [new ChannelEncoder(), new ChannelEncoder()];
 const manual = new Manual();
 manual.smoothing = settings.manual.smoothing;
-const sources = { generator, manual };
+const player = new Player();
+player.speed = settings.player.speed;
+const recorder = new Recorder();
+const sources = { generator, manual, player };
 const pulseHistory = new PulseHistory();
 const touchpads = ['padA', 'padB'].map((id, ch) =>
   new Touchpad(document.getElementById(id), pos => manual.setPosition(ch, pos), () => settings.manual.centerRate));
@@ -80,7 +89,8 @@ const state = {
   riderMax: [null, null], // Driver: the Rider's reported MAX
   muted: false,
   playing: false,
-  source: 'generator', // what plays while `playing`: 'generator' | 'manual', like Howl's active pulse source
+  source: 'generator', // what plays while `playing`: 'generator' | 'manual' | 'player', like Howl's active pulse source
+  seeking: false, // the Player's seek bar is being dragged
   // Header toggles. Not saved: like the Android app, a reload starts with them off
   autoIncrease: false,
   autoElapsedMs: [0, 0],
@@ -169,12 +179,15 @@ function tick() {
   const pulses = [];
   for (let i = 0; i < PULSES_PER_TICK; i++) {
     let p = fromStream ? stream.next(now + i * 25) : fromSource ? source.next(TICK_SECONDS / PULSES_PER_TICK) : SILENT;
+    // The recorder keeps the source's own pulses, before swap and mute, as Howl's does
+    if (fromSource) recorder.add(p);
     if (state.swap) p = { ampA: p.ampB, ampB: p.ampA, freqA: p.freqB, freqB: p.freqA };
     if (state.muted) p = { ...p, ampA: 0, ampB: 0 };
     pulses.push(p);
     pulseHistory.add(p);
   }
-  autoIncreasePower(TICK_SECONDS * 1000);
+  // As on Android, auto-increase only counts while something plays
+  if (fromSource || fromStream) autoIncreasePower(TICK_SECONDS * 1000);
 
   // Driver: the generator's waves go to the Rider, 4 pulses per channel per message, as DriverRelayOutput sends them
   if (driverBound() && state.playing) {
@@ -201,6 +214,14 @@ function tick() {
 
   state.lastPulse = pulses[pulses.length - 1];
   renderMeters();
+  if (state.source === 'player') {
+    if (player.ended) {
+      setPlaying(false);
+      player.seek(0);
+    }
+    renderPlayerPosition();
+  }
+  renderRecorder();
 
   if (fromSource && state.source === 'generator' && $('genAuto').checked && ++state.ticks % AUTO_CHANGE_TICKS === 0) {
     generator.randomize();
@@ -222,6 +243,10 @@ function startClock() {
 /** Plays or stops. Playing another source switches to it, as Howl's Player.switchPulseSource. */
 function setPlaying(playing, source = state.source) {
   if (playing && riderActive()) return;
+  if (playing && source === 'player' && !player.file) {
+    toast('Open a .funscript or .hwl file first.');
+    return;
+  }
   if (playing === state.playing && (!playing || source === state.source)) return;
   if (playing) {
     state.source = source;
@@ -239,6 +264,7 @@ function setPlaying(playing, source = state.source) {
   }
   renderPlay();
   renderManual();
+  renderPlayer();
   renderGeneratorHint();
 }
 
@@ -512,6 +538,8 @@ function renderPlay() {
   const path = source => (isPlaying(source) ? 'M7 5h4v14H7zm6 0h4v14h-4z' : 'M8 5v14l11-7z');
   $('genPlayPath').setAttribute('d', path('generator'));
   $('manualPlayPath').setAttribute('d', path('manual'));
+  $('playerPlayPath').setAttribute('d', path('player'));
+  $('playerPlay').disabled = riderActive();
   $('genPlay').disabled = riderActive();
   $('manualPlay').disabled = riderActive();
 }
@@ -755,6 +783,128 @@ function renderManual() {
     : 'Press play to begin manual control.';
 }
 
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds - m * 60;
+  return `${String(m).padStart(2, '0')}:${s.toFixed(1).padStart(4, '0')}`;
+}
+
+function renderPlayer() {
+  const file = player.file;
+  $('playerName').textContent = file?.name ?? 'Player';
+  $('playerInfo').textContent = file?.info ?? '';
+  $('playerInfo').hidden = !file?.info;
+  $('playerSeek').disabled = !file;
+  $('playerSeek').max = file ? file.duration : 0;
+  $('playerHint').hidden = !!file;
+  $('fineTuneRow').hidden = !settings.player.showSyncFineTune;
+  $('playerFineTune').value = player.syncFineTune;
+  $('playerFineTuneOut').textContent = player.syncFineTune.toFixed(2);
+  buildFunscriptMeters();
+  renderPlayerPosition();
+}
+
+function renderPlayerPosition() {
+  if (!state.seeking) {
+    $('playerSeek').value = player.position;
+    $('playerTime').textContent = formatTime(player.position);
+  }
+  const meters = $('funscriptMeters');
+  if (meters.hidden) return;
+  for (const m of meters.querySelectorAll('[data-axis]')) {
+    const pos = player.file.axisPosition(m.dataset.axis, player.position) ?? 0;
+    if (m.classList.contains('fs-dial')) {
+      // 270 degree sweep: 0 at the upper right, 0.5 at the bottom, as Howl's RotationDialMeter
+      m.style.setProperty('--angle', `${-45 + 270 * (1 - pos)}deg`);
+    } else {
+      m.style.setProperty('--pos', pos.toFixed(3));
+    }
+  }
+}
+
+function buildFunscriptMeters() {
+  const meters = $('funscriptMeters');
+  const file = player.file;
+  meters.hidden = !(settings.showFunscriptMeters && file?.axisIds);
+  if (meters.hidden) return meters.replaceChildren();
+  if (meters.dataset.for === file.name + file.axisIds) return;
+  meters.dataset.for = file.name + file.axisIds;
+  const group = ids => {
+    const g = el('div', 'fs-group');
+    for (const id of ids) {
+      const meter = el('div', 'fs-meter');
+      const gauge = el('div', isRotationAxis(id) ? 'fs-dial' : 'fs-bar');
+      gauge.dataset.axis = id;
+      gauge.append(el('i'));
+      meter.append(el('span', null, null, AXIS_NAMES[id] ?? id), gauge);
+      g.append(meter);
+    }
+    return g;
+  };
+  const linear = file.axisIds.filter(id => !isRotationAxis(id));
+  const rotation = file.axisIds.filter(isRotationAxis);
+  meters.replaceChildren(...[linear, rotation].filter(ids => ids.length).map(group));
+}
+
+function renderPlayerSettings() {
+  $('setSpeed').value = settings.player.speed;
+  $('setSpeedOut').textContent = settings.player.speed.toFixed(2);
+  $('setShowFineTune').checked = settings.player.showSyncFineTune;
+  $('setShowMeters').checked = settings.showFunscriptMeters;
+  const f = settings.funscript;
+  for (const [id, key] of FUNSCRIPT_SLIDERS) {
+    $(id).value = f[key];
+    $(`${id}Out`).textContent = f[key].toFixed(2);
+  }
+  $('fsFlip').checked = f.flipDirectionalFreqShift;
+  $('fsNormalise').checked = f.normaliseAxes;
+}
+
+const FUNSCRIPT_SLIDERS = [
+  ['fsVolume', 'volume'], ['fsPositional', 'positionalEffectStrength'], ['fsSigma', 'smoothingSigma'],
+  ['fsEnergy', 'freqEnergyProportion'], ['fsShift', 'directionalFreqShift'],
+];
+
+let lastRecordRender = '';
+function renderRecorder() {
+  const key = `${recorder.recordMode}${recorder.recording}${recorder.pulses.length}`;
+  if (key === lastRecordRender) return;
+  lastRecordRender = key;
+  $('recorderCard').classList.toggle('active', recorder.recordMode);
+  $('recordMode').checked = recorder.recordMode;
+  $('recordBtn').hidden = !recorder.recordMode;
+  $('recordClear').hidden = !recorder.recordMode;
+  $('recordBtn').setAttribute('aria-pressed', String(recorder.recording));
+  $('recordSave').disabled = recorder.duration === 0;
+  $('recordTime').textContent = formatTime(recorder.duration);
+}
+
+/** Loads a file into the Player. Like Howl, loading stops whatever plays and makes the file the active source. */
+async function loadPlayerFile(file) {
+  try {
+    const source = await openFile(file, settings.funscript);
+    setPlaying(false);
+    player.load(source);
+    state.source = 'player';
+    renderPlay();
+    renderManual();
+    renderPlayer();
+  } catch (e) {
+    toast(e.message || 'Could not open that file.');
+  }
+}
+
+function saveRecording() {
+  setPlaying(false);
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const name = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}--${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}.hwl`;
+  const url = URL.createObjectURL(new Blob([writeHWL(recorder.pulses)], { type: 'application/octet-stream' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 function renderManualSettings() {
   const { centerRate, smoothing } = settings.manual;
   $('setCenterRate').value = centerRate;
@@ -798,6 +948,8 @@ function renderAll() {
   renderDevice();
   renderRemote();
   renderManual();
+  renderPlayer();
+  renderRecorder();
   renderGeneratorHint();
 }
 
@@ -864,6 +1016,69 @@ function wire() {
   $('chartBtn').onclick = () => setChartMode(CHART_MODES[(CHART_MODES.indexOf(state.chartMode) + 1) % CHART_MODES.length]);
   $('genPlay').onclick = () => setPlaying(!isPlaying('generator'), 'generator');
   $('manualPlay').onclick = () => setPlaying(!isPlaying('manual'), 'manual');
+  $('playerPlay').onclick = () => setPlaying(!isPlaying('player'), 'player');
+  $('playerOpen').onclick = () => {
+    if (isPlaying('player')) setPlaying(false);
+    $('playerFile').click();
+  };
+  $('playerFile').onchange = e => {
+    const file = e.target.files[0];
+    e.target.value = ''; // so picking the same file again still loads it
+    if (file) loadPlayerFile(file);
+  };
+  const card = $('playerCard');
+  card.ondragover = e => { e.preventDefault(); card.classList.add('drop'); };
+  card.ondragleave = () => card.classList.remove('drop');
+  card.ondrop = e => {
+    e.preventDefault();
+    card.classList.remove('drop');
+    const file = e.dataTransfer.files[0];
+    if (file) loadPlayerFile(file);
+  };
+  // The position only changes when the drag ends, so dragging doesn't send garbled output
+  $('playerSeek').oninput = e => {
+    state.seeking = true;
+    $('playerTime').textContent = formatTime(Number(e.target.value));
+  };
+  $('playerSeek').onchange = e => {
+    state.seeking = false;
+    player.seek(Number(e.target.value));
+    renderPlayerPosition();
+  };
+  $('playerFineTune').oninput = e => {
+    player.syncFineTune = clamp(Number(e.target.value) || 0, ...FINE_TUNE_RANGE);
+    $('playerFineTuneOut').textContent = player.syncFineTune.toFixed(2);
+  };
+  $('playerSettingsBtn').onclick = () => {
+    const panel = $('playerSettings');
+    panel.hidden = !panel.hidden;
+    $('playerSettingsBtn').setAttribute('aria-expanded', String(!panel.hidden));
+  };
+  $('setSpeed').oninput = e => {
+    settings.player.speed = clamp(Number(e.target.value) || 1, ...PLAYBACK_SPEED_RANGE);
+    player.speed = settings.player.speed;
+    renderPlayerSettings();
+  };
+  $('setSpeed').onchange = () => saveSettings();
+  $('setShowFineTune').onchange = e => { settings.player.showSyncFineTune = e.target.checked; saveSettings(); renderPlayer(); };
+  $('setShowMeters').onchange = e => { settings.showFunscriptMeters = e.target.checked; saveSettings(); renderPlayer(); };
+  for (const [id, key] of FUNSCRIPT_SLIDERS) {
+    $(id).oninput = e => { settings.funscript[key] = Number(e.target.value); renderPlayerSettings(); };
+    $(id).onchange = () => saveSettings();
+  }
+  $('fsFlip').onchange = e => { settings.funscript.flipDirectionalFreqShift = e.target.checked; saveSettings(); };
+  $('fsNormalise').onchange = e => { settings.funscript.normaliseAxes = e.target.checked; saveSettings(); };
+  $('fsReset').onclick = () => {
+    // Reset in place: a loaded funscript keeps a reference to this object
+    Object.assign(settings.funscript, FUNSCRIPT_DEFAULTS);
+    saveSettings();
+    renderPlayerSettings();
+  };
+
+  $('recordMode').onchange = e => { recorder.setRecordMode(e.target.checked); renderRecorder(); };
+  $('recordBtn').onclick = () => { recorder.recording = !recorder.recording; renderRecorder(); };
+  $('recordClear').onclick = () => { recorder.clear(); renderRecorder(); };
+  $('recordSave').onclick = saveRecording;
   $('manualSettingsBtn').onclick = () => {
     const panel = $('manualSettings');
     panel.hidden = !panel.hidden;
@@ -997,6 +1212,7 @@ function wire() {
 wire();
 renderSettings();
 renderManualSettings();
+renderPlayerSettings();
 renderGenerator();
 renderAll();
 startClock();

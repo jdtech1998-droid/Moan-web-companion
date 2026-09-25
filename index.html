@@ -147,10 +147,52 @@
         <button class="estop" id="estopBtn" hidden>E-STOP</button>
       </section>
 
+      <!-- PLAYER -->
       <section class="panel" id="tab-player" role="tabpanel" hidden>
-        <div class="card coming-soon">
-          <div class="card-title">Player</div>
-          <p class="muted small center">Playing funscript and HWL files is coming to the web version soon.</p>
+        <div class="card player-card" id="playerCard">
+          <div class="player-name" id="playerName">Player</div>
+          <div class="muted small" id="playerInfo" hidden></div>
+          <div class="seek-row">
+            <input type="range" id="playerSeek" min="0" max="0" step="0.01" value="0" aria-label="Playback position" disabled>
+            <span class="player-time" id="playerTime">00:00.0</span>
+          </div>
+          <div class="player-buttons">
+            <button class="btn-tonal pill" id="playerPlay" aria-label="Play or pause the file"><svg viewBox="0 0 24 24" class="icon"><path id="playerPlayPath" d="M8 5v14l11-7z"/></svg></button>
+            <button class="btn-tonal pill" id="playerOpen" aria-label="Open file" title="Open a .funscript or .hwl file"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M160,800q-33,0 -56.5,-23.5T80,720v-480q0,-33 23.5,-56.5T160,160h240l80,80h320q33,0 56.5,23.5T880,320L447,320l-80,-80L160,240v480l96,-320h684L837,743q-8,26 -29.5,41.5T760,800L160,800ZM244,720h516l72,-240L316,480l-72,240ZM244,720 L316,480 244,720ZM160,320v-80,80Z"/></svg></button>
+            <span class="spacer"></span>
+            <button class="btn-tonal pill" id="playerSettingsBtn" aria-expanded="false" aria-controls="playerSettings" aria-label="Player settings" title="Player settings"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="m370,880 l-16,-128q-13,-5 -24.5,-12T307,725l-119,50L78,585l103,-78q-1,-7 -1,-13.5v-27q0,-6.5 1,-13.5L78,375l110,-190 119,50q11,-8 23,-15t24,-12l16,-128h220l16,128q13,5 24.5,12t22.5,15l119,-50 110,190 -103,78q1,7 1,13.5v27q0,6.5 -2,13.5l103,78 -110,190 -118,-50q-11,8 -23,15t-24,12L590,880L370,880ZM440,800h79l14,-106q31,-8 57.5,-23.5T639,633l99,41 39,-68 -86,-65q5,-14 7,-29.5t2,-31.5q0,-16 -2,-31.5t-7,-29.5l86,-65 -39,-68 -99,42q-22,-23 -48.5,-38.5T533,266l-13,-106h-79l-14,106q-31,8 -57.5,23.5T321,327l-99,-41 -39,68 86,64q-5,15 -7,30t-2,32q0,16 2,31t7,30l-86,65 39,68 99,-42q22,23 48.5,38.5T427,694l13,106ZM482,620q58,0 99,-41t41,-99q0,-58 -41,-99t-99,-41q-59,0 -99.5,41T342,480q0,58 40.5,99t99.5,41ZM480,480Z"/></svg></button>
+          </div>
+          <input type="file" id="playerFile" accept=".funscript,.hwl" hidden>
+          <div class="funscript-meters" id="funscriptMeters" hidden></div>
+          <div id="fineTuneRow" hidden>
+            <label class="slider-setting">
+            <span>Sync fine tune (seconds)</span><output id="playerFineTuneOut"></output>
+            <input type="range" id="playerFineTune" min="-0.5" max="0.5" step="0.01">
+          </label>
+          </div>
+          <p class="muted small" id="playerHint">Open a .funscript or .hwl file, or drop one here.</p>
+        </div>
+        <div class="card" id="playerSettings" hidden>
+          <div class="card-title">Player settings</div>
+          <label class="slider-setting">
+            <span>Playback speed</span><output id="setSpeedOut"></output>
+            <input type="range" id="setSpeed" min="0.25" max="4" step="0.25">
+          </label>
+          <label class="switch-row"><span>Show sync fine tune</span><input type="checkbox" class="switch" id="setShowFineTune"></label>
+        </div>
+        <div class="card recorder" id="recorderCard">
+          <div class="row-between">
+            <span class="card-title">Recorder</span>
+            <input type="checkbox" class="switch" id="recordMode" aria-label="Record mode" title="Record mode">
+          </div>
+          <div class="recorder-row">
+            <button class="btn-tonal pill" id="recordBtn" aria-pressed="false" aria-label="Start or stop recording" title="Start or stop recording" hidden><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M158,718q-37,-50 -57.5,-110.5T80,480q0,-67 20,-127t57,-110l58,57q-26,38 -40.5,83.5T160,480q0,51 14.5,97t40.5,84l-57,57ZM480,880q-67,0 -127,-20t-110,-57l57,-58q38,26 83.5,40.5T480,800q51,0 96.5,-14.5T660,745l57,58q-50,37 -110,57T480,880ZM802,718 L745,661q26,-38 40.5,-84t14.5,-97q0,-51 -14.5,-96.5T745,300l58,-57q37,50 57,110t20,127q0,67 -20.5,127.5T802,718ZM299,215l-57,-57q50,-37 110.5,-57.5T480,80q68,0 128,20.5T718,158l-57,57q-38,-26 -84,-40.5T480,160q-51,0 -97,14.5T299,215ZM480,680q-83,0 -141.5,-58.5T280,480q0,-83 58.5,-141.5T480,280q83,0 141.5,58.5T680,480q0,83 -58.5,141.5T480,680Z"/></svg></button>
+            <button class="btn-tonal pill" id="recordSave" aria-label="Save recording" title="Save as an HWL file"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M840,280v480q0,33 -23.5,56.5T760,840L200,840q-33,0 -56.5,-23.5T120,760v-560q0,-33 23.5,-56.5T200,120h480l160,160ZM760,314L646,200L200,200v560h560v-446ZM480,720q50,0 85,-35t35,-85q0,-50 -35,-85t-85,-35q-50,0 -85,35t-35,85q0,50 35,85t85,35ZM240,400h360v-160L240,240v160ZM200,314v446,-560 114Z"/></svg></button>
+            <button class="btn-tonal pill" id="recordClear" aria-label="Clear recording" title="Clear recording" hidden><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M280,840q-33,0 -56.5,-23.5T200,760v-520h-40v-80h200v-40h240v40h200v80h-40v520q0,33 -23.5,56.5T680,840L280,840ZM680,240L280,240v520h400v-520ZM360,680h80v-360h-80v360ZM520,680h80v-360h-80v360ZM280,240v520,-520Z"/></svg></button>
+            <span class="spacer"></span>
+            <span class="player-time" id="recordTime">00:00.0</span>
+          </div>
+          <p class="muted small" id="recordHint">Keeps the last 2 minutes of whatever plays. Turn on record mode to record only when you choose, for up to 2 hours.</p>
         </div>
       </section>
 
@@ -215,6 +257,34 @@
         <div class="card">
           <div class="card-title">Display</div>
           <div class="setting"><span>Pulse chart style</span><select id="setChartStyle"><option>Point</option><option>Line</option></select></div>
+          <label class="switch-row"><span>Show funscript meters</span><input type="checkbox" class="switch" id="setShowMeters"></label>
+        </div>
+        <div class="card">
+          <div class="card-title">Funscript</div>
+          <p class="muted small">Advanced parameters for tuning the funscript algorithm. Most users should stick with the default values.</p>
+          <label class="slider-setting">
+            <span>Scaling coefficient</span><output id="fsVolumeOut"></output>
+            <input type="range" id="fsVolume" min="0.5" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Positional effect strength</span><output id="fsPositionalOut"></output>
+            <input type="range" id="fsPositional" min="0" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Amplitude calculation window</span><output id="fsSigmaOut"></output>
+            <input type="range" id="fsSigma" min="0" max="0.5" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Frequency energy proportion</span><output id="fsEnergyOut"></output>
+            <input type="range" id="fsEnergy" min="0" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Frequency directional shift</span><output id="fsShiftOut"></output>
+            <input type="range" id="fsShift" min="0" max="0.5" step="0.01">
+          </label>
+          <label class="switch-row"><span>Flip frequency directional shift</span><input type="checkbox" class="switch" id="fsFlip"></label>
+          <label class="switch-row"><span>Normalise axes (when loading)</span><input type="checkbox" class="switch" id="fsNormalise"></label>
+          <button class="btn-text" id="fsReset">Reset funscript settings</button>
         </div>
         <div class="card">
           <div class="card-title">Coyote 3</div>

@@ -288,6 +288,30 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .switch:checked { background: var(--primary); border-color: var(--primary); }
 .switch:checked::after { left: 24px; width: 22px; height: 22px; background: var(--on-primary); }
 
+/* ---- Player ---- */
+.player-card { gap: 6px; }
+.player-card.drop { outline: 2px dashed var(--primary); outline-offset: 4px; }
+.player-name { font-size: 22px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seek-row { display: flex; align-items: center; gap: 10px; }
+.seek-row input { flex: 1; min-width: 0; }
+.player-time { font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.player-buttons, .recorder-row { display: flex; align-items: center; gap: 8px; }
+.player-buttons .icon, .recorder-row .icon { width: 24px; height: 24px; }
+.spacer { flex: 1; }
+.recorder.active { background: var(--secondary-container); }
+.recorder .row-between { display: flex; }
+.recorder .card-title { text-align: left; }
+#recordBtn[aria-pressed="true"] { background: var(--tertiary); color: var(--on-tertiary); }
+
+/* Funscript axis meters, as Howl's FunscriptMeters: bars for the linear axes, dials for the rotations */
+.funscript-meters { display: flex; justify-content: space-evenly; align-items: flex-start; gap: 16px; padding: 4px 0; }
+.fs-meter { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 500; }
+.fs-group { display: flex; gap: 16px; }
+.fs-bar { position: relative; width: 28px; height: 48px; border-radius: 6px; background: var(--surface-container-highest); overflow: hidden; }
+.fs-bar i { position: absolute; left: 3px; right: 3px; height: 6px; border-radius: 3px; background: var(--primary); bottom: calc(var(--pos) * (100% - 6px)); transition: bottom .1s linear; }
+.fs-dial { position: relative; width: 48px; height: 48px; border-radius: 50%; border: 3px solid var(--surface-container-highest); }
+.fs-dial i { position: absolute; left: 50%; top: 50%; width: 19px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--primary); transform-origin: 0 50%; transform: rotate(var(--angle)); transition: transform .1s linear; }
+
 /* ---- Manual ---- */
 .manual-actions { display: flex; justify-content: center; gap: 8px; }
 .manual-actions .icon { width: 26px; height: 26px; }
@@ -388,7 +412,8 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
   /* E-STOP stays in view however long the feedback feed gets */
   #tab-remote .estop { position: sticky; bottom: 0; margin-top: auto; }
   .device-bar { grid-area: dev; position: static; transform: none; width: auto; margin-bottom: 20px; }
-  .feed-popups, .toast { bottom: 24px; }
+  /* Above the device bar at the bottom of the center column */
+  .feed-popups, .toast { bottom: 110px; }
 }
 
 /* The Generator cards stack when their column is narrow (the left column on a smaller wide screen) */
