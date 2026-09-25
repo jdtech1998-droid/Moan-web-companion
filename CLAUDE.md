@@ -4,12 +4,16 @@ Free web companion to the Android app "Howl" (a DG-LAB Coyote controller). Live 
 
 ## Stack
 - Plain HTML/CSS/JS with ES modules. No build step, no bundler. Keep it that way.
-- Files: `index.html`, `css/` (app.css, theme.css), `js/` (app, coyote3, feedback, generator, protocol, relay, remote, stream), `test/`.
-- `npm test` runs the unit tests (protocol and stream). `npm run serve` starts a local server.
+- Files: `index.html`, `css/` (app.css, theme.css), `js/`, `test/`.
+  - Core: app (page wiring and the 40 pulses/s output loop), protocol, coyote3, relay, remote, stream, feedback.
+  - Tabs: generator, manual + touchpad, funscript + player, activitycore + activities + simplex + controls + icons, pulsechart.
+- `npm test` runs the unit tests. `npm run serve` starts a local server on http://localhost:8000.
+- New Android features are ported close to line by line from `../Howl-2.0.1/app/src/main/java/com/example/howl/`. Icons come from its `res/drawable` path data.
 
 ## What v1 does
-- Remote Play in both roles. The web Rider drives a Coyote 3 directly over Web Bluetooth (Chrome/Edge only). The web Driver has a simple wave generator.
-- The look and feel copies the Android app.
+- Remote Play in both roles. The web Rider drives a Coyote 3 directly over Web Bluetooth (Chrome/Edge only).
+- The Howl 2.0.1 layout: tabs Player, Generator, Activity, Manual, Remote, Settings; header row with Mute, Auto-increase power, Pulse chart, Swap channels; power bars that fill each channel panel.
+- One active pulse source at a time (`state.source`: generator, manual, player, activity), like Howl's Player. Starting one stops the others; whatever plays is also what a Driver streams.
 - Not built yet: Paw Prints, Coyote 2.
 
 ## Interop rules (do not break)
@@ -21,6 +25,7 @@ Free web companion to the Android app "Howl" (a DG-LAB Coyote controller). Live 
 The public name is "Moan Web Companion". The original Howl (Amethyst-Sysadmin) license forbids redistributions from using the name "Howl". The user is asking the original author for permission. Don't use "Howl" in public-facing text.
 
 ## Status and testing
+- Headless Edge test scripts drive the page through the Chrome DevTools Protocol (fake relay WebSocket, real file inputs, real mouse input). They are not in the repo.
 - Tested: 14 unit tests, a Rider/Driver session through the live relay, a scripted UI session in headless Edge, and a live Remote Play test on 2026-09-23 with the Coyote unplugged (both directions work between the web page and the phone).
 - Not tested: a real Coyote 3 with electrodes. Treat anything that changes output levels as safety-sensitive.
 
@@ -30,7 +35,13 @@ The public name is "Moan Web Companion". The original Howl (Amethyst-Sysadmin) l
 - The breakpoint lives in two places that must match: `@media (min-width: 1200px)` in `css/app.css` and `wideQuery` in `js/app.js`.
 
 ## Next up
-1. Update the UI to match the current Howl 2.0.1 Android app: tabs Player, Generator, Activity, Manual, Remote, Settings; a header row with Auto-increase power, Pulse chart and Swap channels; larger power bars. On wide screens the new tabs go in the left column and the header row in the center column.
+Activity tab port, in batches. Done: the toolkit (`activitycore.js`, `simplex.js`) and 5 activities: Infinite licks, Penetration, Sliding vibrator, Milkmaster 3000, Chaos.
+1. Next batch: Luxury HJ, Opposites, BJ Megamix, Fast/slow, Simplex, Relentless (Activity.kt from line 858).
+2. Then Overflowing, Succubus, Sine time.
+3. Then the calibration activities (Calibrate power, frequency, position). They are excluded from random select by default. "Calibrate position" sets Howl's positional effect curve; on the web that value currently lives in `settings.funscript.positionalEffectCurve`, and the Funscript "Reset" button resets it too. Move it to its own setting when porting that activity.
+Each activity: add the class to `activities.js`, its persisted options to `ACTIVITY_OPTION_DEFAULTS`, an entry in `ACTIVITY_TYPES` (Howl's order), and it is covered by the "every activity runs" test.
+
+Not ported on purpose: Android's "remote latency" player setting (only for scripts sent to the phone by other apps).
 
 ## Working rules
 - Confirm with the user before publishing or pushing anything visible. Pushing to `main` deploys the live site.

@@ -10,6 +10,9 @@ import { PulseHistory, PulseChart, CHART_MODES, CHART_STYLES } from './pulsechar
 import { Manual, MANUAL_DEFAULTS, SMOOTHING_RANGE, CENTER_RATE_RANGE } from './manual.js';
 import { Touchpad } from './touchpad.js';
 import { FUNSCRIPT_DEFAULTS, AXIS_NAMES, isRotationAxis } from './funscript.js';
+import { ActivityHost, ACTIVITY_TYPES, ACTIVITY_OPTION_DEFAULTS, DEFAULT_EXCLUDED } from './activities.js';
+import { buildControls } from './controls.js';
+import { icon } from './icons.js';
 import { Player, Recorder, openFile, writeHWL, PLAYER_DEFAULTS, SPEED_RANGE as PLAYBACK_SPEED_RANGE, FINE_TUNE_RANGE } from './player.js';
 
 const $ = id => document.getElementById(id);
@@ -27,6 +30,7 @@ const DEFAULT_SETTINGS = {
   player: { ...PLAYER_DEFAULTS },
   funscript: { ...FUNSCRIPT_DEFAULTS },
   showFunscriptMeters: true,
+  activity: { changeProbability: 0, excluded: [...DEFAULT_EXCLUDED], options: { ...ACTIVITY_OPTION_DEFAULTS } },
   balance: { frequencyBalanceA: 200, frequencyBalanceB: 200, intensityBalanceA: 0, intensityBalanceB: 0 },
   relayUrl: DEFAULT_RELAY_URL,
   freqRange: [10, 100], // output frequency range, Hz
@@ -37,7 +41,8 @@ function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
     return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance }, manual: { ...DEFAULT_SETTINGS.manual, ...saved.manual },
-      player: { ...DEFAULT_SETTINGS.player, ...saved.player }, funscript: { ...DEFAULT_SETTINGS.funscript, ...saved.funscript } };
+      player: { ...DEFAULT_SETTINGS.player, ...saved.player }, funscript: { ...DEFAULT_SETTINGS.funscript, ...saved.funscript },
+      activity: { ...DEFAULT_SETTINGS.activity, ...saved.activity, options: { ...DEFAULT_SETTINGS.activity.options, ...saved.activity?.options } } };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }
@@ -72,7 +77,11 @@ manual.smoothing = settings.manual.smoothing;
 const player = new Player();
 player.speed = settings.player.speed;
 const recorder = new Recorder();
-const sources = { generator, manual, player };
+const activityHost = new ActivityHost(
+  { settings: settings.activity.options, positionalCurve: () => settings.funscript.positionalEffectCurve },
+  () => settings.activity,
+);
+const sources = { generator, manual, player, activity: activityHost };
 const pulseHistory = new PulseHistory();
 const touchpads = ['padA', 'padB'].map((id, ch) =>
   new Touchpad(document.getElementById(id), pos => manual.setPosition(ch, pos), () => settings.manual.centerRate));
@@ -89,7 +98,7 @@ const state = {
   riderMax: [null, null], // Driver: the Rider's reported MAX
   muted: false,
   playing: false,
-  source: 'generator', // what plays while `playing`: 'generator' | 'manual' | 'player', like Howl's active pulse source
+  source: 'generator', // what plays while `playing`: 'generator' | 'manual' | 'player' | 'activity', like Howl's active pulse source
   seeking: false, // the Player's seek bar is being dragged
   // Header toggles. Not saved: like the Android app, a reload starts with them off
   autoIncrease: false,
@@ -222,6 +231,7 @@ function tick() {
     renderPlayerPosition();
   }
   renderRecorder();
+  if (!$('tab-activity').hidden) refreshActivityControls();
 
   if (fromSource && state.source === 'generator' && $('genAuto').checked && ++state.ticks % AUTO_CHANGE_TICKS === 0) {
     generator.randomize();
@@ -539,6 +549,8 @@ function renderPlay() {
   $('genPlayPath').setAttribute('d', path('generator'));
   $('manualPlayPath').setAttribute('d', path('manual'));
   $('playerPlayPath').setAttribute('d', path('player'));
+  $('activityPlayPath').setAttribute('d', path('activity'));
+  $('activityPlay').disabled = riderActive();
   $('playerPlay').disabled = riderActive();
   $('genPlay').disabled = riderActive();
   $('manualPlay').disabled = riderActive();
@@ -905,6 +917,54 @@ function saveRecording() {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
+// ---- Activity tab ----
+
+let refreshActivityControls = () => {};
+
+function buildActivityPicker() {
+  const select = $('activitySelect');
+  select.replaceChildren(...ACTIVITY_TYPES.map(t => Object.assign(document.createElement('option'), { value: t.id, textContent: t.name })));
+  $('activityRestart').replaceChildren(icon('replay'));
+}
+
+/** Rebuilds the Activity tab for the current activity: called when it changes, by the user or at random. */
+function renderActivity() {
+  const type = activityHost.type;
+  const inst = activityHost.instance;
+  const excluded = settings.activity.excluded;
+  $('activitySelect').value = type.id;
+  for (const opt of $('activitySelect').options) opt.classList.toggle('excluded', excluded.includes(opt.value));
+  $('activityIcon').replaceChildren(icon(type.icon));
+  const calibration = type.id.startsWith('CALIBRATE');
+  $('activityTitle').textContent = `${type.name} settings`;
+  $('activityTitle').hidden = calibration;
+  $('activityRandomRow').hidden = calibration;
+  $('activityRandom').checked = !excluded.includes(type.id);
+
+  const persist = () => saveSettings();
+  const permanent = $('activityPermanent');
+  permanent.replaceChildren();
+  const refreshPermanent = buildControls(permanent, inst.permanentControls(), persist);
+  permanent.hidden = !permanent.childElementCount;
+  $('activitySettings').hidden = calibration && !permanent.childElementCount;
+
+  const temporary = $('activityTemporary');
+  temporary.replaceChildren();
+  const refreshTemporary = buildControls(temporary, inst.temporaryControls(), persist);
+  temporary.hidden = !temporary.childElementCount;
+
+  refreshActivityControls = () => { refreshPermanent(); refreshTemporary(); };
+  renderActivityHint();
+}
+
+function renderActivityHint() {
+  $('activityChange').value = settings.activity.changeProbability;
+  $('activityChangeOut').textContent = settings.activity.changeProbability.toFixed(2);
+  const hint = $('activityHint');
+  hint.textContent = riderActive() ? "Activities are off while you're the Rider: your Driver is in control." : '';
+  hint.hidden = !hint.textContent;
+}
+
 function renderManualSettings() {
   const { centerRate, smoothing } = settings.manual;
   $('setCenterRate').value = centerRate;
@@ -950,6 +1010,7 @@ function renderAll() {
   renderManual();
   renderPlayer();
   renderRecorder();
+  renderActivityHint();
   renderGeneratorHint();
 }
 
@@ -1017,6 +1078,24 @@ function wire() {
   $('genPlay').onclick = () => setPlaying(!isPlaying('generator'), 'generator');
   $('manualPlay').onclick = () => setPlaying(!isPlaying('manual'), 'manual');
   $('playerPlay').onclick = () => setPlaying(!isPlaying('player'), 'player');
+  $('activityPlay').onclick = () => setPlaying(!isPlaying('activity'), 'activity');
+  buildActivityPicker();
+  activityHost.onChange = renderActivity;
+  renderActivity();
+  $('activitySelect').onchange = e => activityHost.setCurrent(e.target.value);
+  $('activityRestart').onclick = () => activityHost.setCurrent(activityHost.type.id);
+  $('activityChange').oninput = e => {
+    settings.activity.changeProbability = clamp(Number(e.target.value) || 0, 0, 1);
+    renderActivityHint();
+  };
+  $('activityChange').onchange = () => saveSettings();
+  $('activityRandom').onchange = e => {
+    const id = activityHost.type.id;
+    const rest = settings.activity.excluded.filter(x => x !== id);
+    settings.activity.excluded = e.target.checked ? rest : [...rest, id];
+    saveSettings();
+    renderActivity();
+  };
   $('playerOpen').onclick = () => {
     if (isPlaying('player')) setPlaying(false);
     $('playerFile').click();

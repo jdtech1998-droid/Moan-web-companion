@@ -213,11 +213,27 @@
         <p class="muted small" id="genHint"></p>
       </section>
 
+      <!-- ACTIVITY -->
       <section class="panel" id="tab-activity" role="tabpanel" hidden>
-        <div class="card coming-soon">
-          <div class="card-title">Activity</div>
-          <p class="muted small center">The Activity tab is coming to the web version soon.</p>
+        <div class="card">
+          <div class="activity-picker">
+            <span class="activity-icon" id="activityIcon"></span>
+            <select id="activitySelect" aria-label="Activity"></select>
+            <button class="btn-tonal pill" id="activityPlay" aria-label="Play or pause the activity"><svg viewBox="0 0 24 24" class="icon"><path id="activityPlayPath" d="M8 5v14l11-7z"/></svg></button>
+            <button class="btn-tonal pill" id="activityRestart" aria-label="Restart the activity" title="Restart"></button>
+          </div>
+          <label class="slider-setting">
+            <span>Random activity change probability</span><output id="activityChangeOut"></output>
+            <input type="range" id="activityChange" min="0" max="1" step="0.01">
+          </label>
         </div>
+        <div class="card" id="activitySettings">
+          <div class="card-title" id="activityTitle"></div>
+          <label class="switch-row" id="activityRandomRow"><span>Available for random select</span><input type="checkbox" class="switch" id="activityRandom"></label>
+          <div class="controls" id="activityPermanent"></div>
+        </div>
+        <div class="card controls" id="activityTemporary" hidden></div>
+        <p class="muted small" id="activityHint"></p>
       </section>
 
       <!-- MANUAL -->

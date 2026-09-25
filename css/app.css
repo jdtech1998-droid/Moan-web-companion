@@ -312,6 +312,21 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .fs-dial { position: relative; width: 48px; height: 48px; border-radius: 50%; border: 3px solid var(--surface-container-highest); }
 .fs-dial i { position: absolute; left: 50%; top: 50%; width: 19px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--primary); transform-origin: 0 50%; transform: rotate(var(--angle)); transition: transform .1s linear; }
 
+/* ---- Activity ---- */
+.activity-picker { display: flex; align-items: center; gap: 8px; }
+.activity-picker select {
+  flex: 1; min-width: 0; font-size: 18px; padding: 10px 12px; border-radius: 12px;
+  background: var(--surface-container-highest); color: var(--on-surface); border: 1px solid var(--outline-variant);
+}
+.activity-picker select option.excluded { color: var(--error); }
+.activity-icon { display: flex; }
+.activity-icon .icon, #activityRestart .icon { width: 28px; height: 28px; }
+#activityTitle { text-align: left; }
+.controls { display: flex; flex-direction: column; gap: 10px; }
+.switch-row.heading { font-size: 20px; font-weight: 500; padding: 0; }
+.smoother-control { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 0.45fr); gap: 16px; }
+.controls .disabled { opacity: .5; }
+
 /* ---- Manual ---- */
 .manual-actions { display: flex; justify-content: center; gap: 8px; }
 .manual-actions .icon { width: 26px; height: 26px; }
