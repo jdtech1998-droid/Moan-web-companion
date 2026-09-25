@@ -24,9 +24,13 @@ The public name is "Moan Web Companion". The original Howl (Amethyst-Sysadmin) l
 - Tested: 14 unit tests, a Rider/Driver session through the live relay, a scripted UI session in headless Edge, and a live Remote Play test on 2026-09-23 with the Coyote unplugged (both directions work between the web page and the phone).
 - Not tested: a real Coyote 3 with electrodes. Treat anything that changes output levels as safety-sensitive.
 
+## Layout
+- Below 1200px wide: the phone layout (power header, tab row, one tab at a time). Rider feedback on the Driver pops up over other tabs (safety words stay until tapped) and the Remote tab shows an unread count.
+- 1200px and up: three columns. Left: the tab row and the open tab (Remote's tab button is hidden). Center: power, meters, mute/play, frequency range, device bar. Right: Remote, always visible, with E-STOP stuck to its bottom. Left and right are equal width so the power column stays centered.
+- The breakpoint lives in two places that must match: `@media (min-width: 1200px)` in `css/app.css` and `wideQuery` in `js/app.js`.
+
 ## Next up
-1. Safety fix: on the web Driver, Rider feedback (STOP, E-STOP, Pause, Yield) is only visible on the Remote tab. Add pop-ups on other tabs (safety ones stay until tapped) plus an unread badge on the Remote tab button. Not implemented yet. It touches `index.html`, `css/app.css`, `js/app.js`.
-2. Update the UI to match the current Howl 2.0.1 Android app: tabs Player, Generator, Activity, Manual, Remote, Settings; a header row with Auto-increase power, Pulse chart and Swap channels; larger power bars.
+1. Update the UI to match the current Howl 2.0.1 Android app: tabs Player, Generator, Activity, Manual, Remote, Settings; a header row with Auto-increase power, Pulse chart and Swap channels; larger power bars. On wide screens the new tabs go in the left column and the header row in the center column.
 
 ## Working rules
 - Confirm with the user before publishing or pushing anything visible. Pushing to `main` deploys the live site.

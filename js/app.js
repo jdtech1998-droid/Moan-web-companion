@@ -71,9 +71,14 @@ const state = {
   feedSeq: 0,
   unread: 0, // Driver: feedback that arrived while the Remote tab wasn't showing
   tab: 'remote',
+  mainTab: 'generator', // the tab shown in the left column on a wide screen
   lastPulse: SILENT,
   ticks: 0,
 };
+
+// Wide screens show Remote in its own column, with the other tabs on the left (see the matching @media in app.css)
+const wideQuery = matchMedia('(min-width: 1200px)');
+const remoteShowing = () => state.tab === 'remote' || wideQuery.matches;
 
 const riderActive = () => state.session instanceof RiderSession;
 const driverActive = () => state.session instanceof DriverSession;
@@ -360,7 +365,7 @@ function addFeedback(preset) {
     state.feed.unshift({ preset, at: now, count: 1, id: seq, seq, acked: !isSafety(preset), popUntil: now + POPUP_MS });
     state.feed.length = Math.min(state.feed.length, FEED_MAX);
   }
-  if (state.tab !== 'remote') state.unread++;
+  if (!remoteShowing()) state.unread++;
   setTimeout(renderPopups, POPUP_MS + 50);
   if (isSafety(preset)) navigator.vibrate?.([200, 100, 200]);
   renderFeed(seq);
@@ -552,12 +557,12 @@ function renderPopups() {
 
   const box = $('feedPopups');
   // The Remote tab already shows the pinned list and the feed while a Driver session is up
-  if (state.tab === 'remote' && driverActive()) {
+  if (remoteShowing() && driverActive()) {
     box.replaceChildren();
     return;
   }
   const now = Date.now();
-  box.replaceChildren(...state.feed.filter(e => !e.acked || (state.tab !== 'remote' && e.popUntil > now)).map(e => {
+  box.replaceChildren(...state.feed.filter(e => !e.acked || (!remoteShowing() && e.popUntil > now)).map(e => {
     const pop = el('div', `feed-popup${!e.acked ? ' pinned' : ''}${isStop(e.preset) ? ' stop' : ''}`, presetStyle(e.preset));
     pop.setAttribute('role', e.acked ? 'status' : 'alert');
     pop.append(el('span', null, null, e.preset.icon), el('span', null, null, e.preset.message));
@@ -703,15 +708,21 @@ function toast(text) {
 // ---- Wiring -------------------------------------------------------------------------------------
 
 function selectTab(name) {
+  const wide = wideQuery.matches;
+  // Remote always has its own column on a wide screen, so the tab row only switches the left one
+  if (wide && name === 'remote') name = state.mainTab;
   state.tab = name;
-  if (name === 'remote') state.unread = 0;
+  if (name !== 'remote') state.mainTab = name;
+  if (remoteShowing()) state.unread = 0;
   renderPopups();
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
-  document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== `tab-${name}`; });
+  document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== `tab-${name}` && !(wide && p.id === 'tab-remote'); });
 }
 
 function wire() {
   document.querySelectorAll('.tab').forEach(t => { t.onclick = () => selectTab(t.dataset.tab); });
+  wideQuery.addEventListener('change', () => selectTab(state.tab));
+  selectTab(state.tab);
   document.querySelectorAll('[data-goto]').forEach(a => {
     a.onclick = e => { e.preventDefault(); selectTab(a.dataset.goto); };
   });

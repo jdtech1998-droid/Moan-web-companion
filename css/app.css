@@ -324,3 +324,35 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
   .gen-grid { grid-template-columns: 1fr; }
   .fb-text small { display: none; }
 }
+
+/* ---- Wide screens: the current tab on the left, power in the middle, Remote always on the right ---- */
+@media (min-width: 1200px) {
+  .app {
+    max-width: 1640px; height: 100vh; min-height: 0;
+    display: grid;
+    /* Equal outer columns keep the power column in the true center */
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 400px) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "tabs head remote" "main head remote" "main dev remote";
+    column-gap: 28px;
+    padding: 0 24px;
+  }
+  .power-header { grid-area: head; align-content: start; padding-top: 20px; overflow-y: auto; }
+  .tabs { grid-area: tabs; margin: 12px 0 0; }
+  .tab { flex-direction: row; justify-content: center; gap: 10px; }
+  .tab .icon { width: 26px; height: 26px; }
+  .tab[data-tab="remote"] { display: none; }
+  .content { display: contents; }
+  .panel { grid-area: main; overflow-y: auto; padding: 16px 4px 24px; min-height: 0; }
+  #tab-remote { grid-area: remote; padding-top: 20px; }
+  /* E-STOP stays in view however long the feedback feed gets */
+  #tab-remote .estop { position: sticky; bottom: 0; margin-top: auto; }
+  .device-bar { grid-area: dev; position: static; transform: none; width: auto; margin-bottom: 20px; }
+  .feed-popups, .toast { bottom: 24px; }
+}
+
+/* The Generator cards stack when their column is narrow (the left column on a smaller wide screen) */
+.panel { container-type: inline-size; }
+@container (max-width: 480px) {
+  .gen-grid { grid-template-columns: 1fr; }
+}
