@@ -47,6 +47,7 @@ const PULSES_PER_TICK = 4; // 4 x 25ms per 100ms tick: Howl's 40Hz pulse rate, b
 const TICK_SECONDS = 0.1;
 const FEED_MERGE_MS = 10000;
 const FEED_MAX = 50;
+const POPUP_MS = 4000; // how long a non-safety pop-up stays up on another tab
 const AUTO_CHANGE_TICKS = 300; // 30s
 
 const coyote = new Coyote3();
@@ -68,6 +69,8 @@ const state = {
   playing: false,
   feed: [],
   feedSeq: 0,
+  unread: 0, // Driver: feedback that arrived while the Remote tab wasn't showing
+  tab: 'remote',
   lastPulse: SILENT,
   ticks: 0,
 };
@@ -288,6 +291,7 @@ function startDriver() {
   }
   state.riderMax = [null, null];
   state.feed = [];
+  state.unread = 0;
   encoders.forEach(e => e.reset());
   state.session = new DriverSession(settings.relayUrl, code, {
     onBound: () => {
@@ -351,10 +355,13 @@ function addFeedback(preset) {
     latest.count++;
     latest.at = now;
     latest.seq = seq;
+    latest.popUntil = now + POPUP_MS;
   } else {
-    state.feed.unshift({ preset, at: now, count: 1, id: seq, seq, acked: !isSafety(preset) });
+    state.feed.unshift({ preset, at: now, count: 1, id: seq, seq, acked: !isSafety(preset), popUntil: now + POPUP_MS });
     state.feed.length = Math.min(state.feed.length, FEED_MAX);
   }
+  if (state.tab !== 'remote') state.unread++;
+  setTimeout(renderPopups, POPUP_MS + 50);
   if (isSafety(preset)) navigator.vibrate?.([200, 100, 200]);
   renderFeed(seq);
 }
@@ -510,6 +517,7 @@ function ago(ms) {
 }
 
 function renderFeed(newSeq) {
+  renderPopups();
   const now = Date.now();
   const pinned = $('pinnedFeed');
   pinned.replaceChildren(...state.feed.filter(e => !e.acked).map(e => {
@@ -532,6 +540,35 @@ function renderFeed(newSeq) {
     if (e.count > 1) row.append(el('span', 'count', null, `×${e.count}`));
     row.append(el('span', 'when', null, ago(now - e.at)));
     return row;
+  }));
+}
+
+// Feedback shown over the other tabs, so the Driver sees it while busy on the Generator or Settings.
+// Safety words stay until tapped; the rest fade after POPUP_MS. Tapping a pop-up opens the Remote tab.
+function renderPopups() {
+  const badge = $('remoteBadge');
+  badge.hidden = state.unread === 0;
+  badge.textContent = state.unread > 9 ? '9+' : String(state.unread);
+
+  const box = $('feedPopups');
+  // The Remote tab already shows the pinned list and the feed while a Driver session is up
+  if (state.tab === 'remote' && driverActive()) {
+    box.replaceChildren();
+    return;
+  }
+  const now = Date.now();
+  box.replaceChildren(...state.feed.filter(e => !e.acked || (state.tab !== 'remote' && e.popUntil > now)).map(e => {
+    const pop = el('div', `feed-popup${!e.acked ? ' pinned' : ''}${isStop(e.preset) ? ' stop' : ''}`, presetStyle(e.preset));
+    pop.setAttribute('role', e.acked ? 'status' : 'alert');
+    pop.append(el('span', null, null, e.preset.icon), el('span', null, null, e.preset.message));
+    if (e.count > 1) pop.append(el('span', 'count', null, `×${e.count}`));
+    pop.onclick = () => { if (driverActive()) selectTab('remote'); };
+    if (!e.acked) {
+      const ok = el('button', null, null, 'Got it');
+      ok.onclick = ev => { ev.stopPropagation(); e.acked = true; renderFeed(); };
+      pop.append(ok);
+    }
+    return pop;
   }));
 }
 
@@ -666,6 +703,9 @@ function toast(text) {
 // ---- Wiring -------------------------------------------------------------------------------------
 
 function selectTab(name) {
+  state.tab = name;
+  if (name === 'remote') state.unread = 0;
+  renderPopups();
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
   document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== `tab-${name}`; });
 }

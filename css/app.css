@@ -122,6 +122,13 @@ a { color: var(--primary); }
   border-radius: 3px 3px 0 0; background: var(--primary);
 }
 
+.tab-badge {
+  position: absolute; top: 6px; left: calc(50% + 10px);
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--estop); color: var(--estop-text);
+  font-size: 12px; font-weight: 700; line-height: 20px; text-align: center;
+}
+
 .content { padding-top: 16px; flex: 1; }
 .panel { display: flex; flex-direction: column; gap: 14px; }
 
@@ -276,6 +283,26 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .device-status { flex: 1; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .device-bar .btn-tonal { min-height: 48px; background: var(--primary-container); color: var(--on-primary-container); }
 @media (prefers-color-scheme: dark) { .device-bar .btn-tonal { background: #CBB3FF; color: #201047; } }
+
+/* Rider feedback over the other tabs */
+.feed-popups {
+  position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 20;
+  width: min(480px, calc(100% - 32px)); max-height: 60vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.feed-popup {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px;
+  background: var(--fb-bg); color: #F2EEF8; font-weight: 600; cursor: pointer;
+  box-shadow: 0 0 0 2px var(--fb-badge), 0 6px 20px rgba(0, 0, 0, .45);
+  animation: drop-in .25s ease-out;
+}
+.feed-popup .count { margin-left: auto; background: var(--fb-badge); color: #141318; border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+.feed-popup.pinned { font-weight: 800; }
+.feed-popup.stop { color: #FFD9DC; animation: drop-in .25s ease-out, stop-glow 1s .25s infinite alternate; }
+@keyframes stop-glow { to { box-shadow: 0 0 0 4px var(--fb-badge), 0 0 24px 4px var(--fb-badge); } }
+.feed-popup button { margin-left: auto; background: rgba(255,255,255,.15); color: inherit; border-radius: 999px; padding: 6px 14px; font-size: 13px; }
+.feed-popup .count + button { margin-left: 8px; }
+@keyframes drop-in { from { transform: translateY(12px); opacity: 0; } }
 
 .toast {
   position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%);

@@ -59,6 +59,7 @@
       <button role="tab" class="tab" data-tab="remote" aria-selected="true">
         <svg viewBox="0 0 24 24" class="icon"><path d="M12 3a9 9 0 00-9 9h2a7 7 0 0114 0h2a9 9 0 00-9-9zm0 4a5 5 0 00-5 5h2a3 3 0 016 0h2a5 5 0 00-5-5zm-1 6v8h2v-8z"/></svg>
         <span>Remote</span>
+        <span class="tab-badge" id="remoteBadge" hidden></span>
       </button>
       <button role="tab" class="tab" data-tab="generator" aria-selected="false">
         <svg viewBox="0 0 24 24" class="icon"><path d="M2 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0M2 7c2-4 4-4 6 0s4 4 6 0 4-4 6 0M2 17c2-4 4-4 6 0s4 4 6 0 4-4 6 0" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
@@ -193,6 +194,7 @@
     </footer>
   </div>
 
+  <div class="feed-popups" id="feedPopups" aria-live="assertive"></div>
   <div class="toast" id="toast" hidden></div>
 
   <script type="module" src="js/app.js"></script>
