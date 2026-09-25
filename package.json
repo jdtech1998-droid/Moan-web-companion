@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/protocol.test.js test/stream.test.js",
+    "test": "node --test test/protocol.test.js test/stream.test.js test/manual.test.js",
     "serve": "node serve.js"
   }
 }

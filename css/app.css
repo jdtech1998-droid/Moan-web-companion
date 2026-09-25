@@ -288,6 +288,24 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .switch:checked { background: var(--primary); border-color: var(--primary); }
 .switch:checked::after { left: 24px; width: 22px; height: 22px; background: var(--on-primary); }
 
+/* ---- Manual ---- */
+.manual-actions { display: flex; justify-content: center; gap: 8px; }
+.manual-actions .icon { width: 26px; height: 26px; }
+.touchpads { display: flex; justify-content: center; gap: 32px; padding: 8px; }
+.touchpad {
+  position: relative; flex: 1 1 0; min-width: 0; max-width: 300px; aspect-ratio: 1;
+  border-radius: 50%; border: 4px solid var(--outline); background: var(--surface-container-highest);
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair;
+}
+.touchpad-dot {
+  position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+  border-radius: 50%; background: var(--primary); pointer-events: none;
+}
+.pad-label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 600; color: var(--on-surface-variant); pointer-events: none; }
+.slider-setting { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
+.slider-setting input { grid-column: 1 / -1; }
+.slider-setting output { font-variant-numeric: tabular-nums; }
+
 /* ---- Settings ---- */
 .setting { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .setting input { width: 90px; padding: 8px 10px; text-align: right; }

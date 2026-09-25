@@ -7,6 +7,8 @@ import { Generator, SHAPE_NAMES, SPEED_RANGE } from './generator.js';
 import { RiderSession, DriverSession } from './remote.js';
 import { FEEDBACK_PRESETS, RIDER_ESTOP_PRESET, isSafety, isStop } from './feedback.js';
 import { PulseHistory, PulseChart, CHART_MODES, CHART_STYLES } from './pulsechart.js';
+import { Manual, MANUAL_DEFAULTS, SMOOTHING_RANGE, CENTER_RATE_RANGE } from './manual.js';
+import { Touchpad } from './touchpad.js';
 
 const $ = id => document.getElementById(id);
 
@@ -19,6 +21,7 @@ const DEFAULT_SETTINGS = {
   step: 1,
   autoDelay: [120, 120], // seconds between auto-increase steps, per channel (Howl's default)
   chartStyle: 'Point',
+  manual: { ...MANUAL_DEFAULTS },
   balance: { frequencyBalanceA: 200, frequencyBalanceB: 200, intensityBalanceA: 0, intensityBalanceB: 0 },
   relayUrl: DEFAULT_RELAY_URL,
   freqRange: [10, 100], // output frequency range, Hz
@@ -28,7 +31,7 @@ const DEFAULT_SETTINGS = {
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
-    return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance } };
+    return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance }, manual: { ...DEFAULT_SETTINGS.manual, ...saved.manual } };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }
@@ -58,7 +61,12 @@ const generator = new Generator();
 if (Array.isArray(settings.generator) && settings.generator.length === 2) generator.channels = settings.generator;
 const stream = new RemoteStream();
 const encoders = [new ChannelEncoder(), new ChannelEncoder()];
+const manual = new Manual();
+manual.smoothing = settings.manual.smoothing;
+const sources = { generator, manual };
 const pulseHistory = new PulseHistory();
+const touchpads = ['padA', 'padB'].map((id, ch) =>
+  new Touchpad(document.getElementById(id), pos => manual.setPosition(ch, pos), () => settings.manual.centerRate));
 const pulseChart = new PulseChart(document.getElementById('pulseChart'));
 
 const state = {
@@ -72,6 +80,7 @@ const state = {
   riderMax: [null, null], // Driver: the Rider's reported MAX
   muted: false,
   playing: false,
+  source: 'generator', // what plays while `playing`: 'generator' | 'manual', like Howl's active pulse source
   // Header toggles. Not saved: like the Android app, a reload starts with them off
   autoIncrease: false,
   autoElapsedMs: [0, 0],
@@ -154,11 +163,12 @@ function syncCoyoteLimits() {
 function tick() {
   const now = performance.now();
   const fromStream = riderActive();
-  const fromGenerator = !fromStream && state.playing;
+  const fromSource = !fromStream && state.playing;
+  const source = sources[state.source];
 
   const pulses = [];
   for (let i = 0; i < PULSES_PER_TICK; i++) {
-    let p = fromStream ? stream.next(now + i * 25) : fromGenerator ? generator.next(TICK_SECONDS / PULSES_PER_TICK) : SILENT;
+    let p = fromStream ? stream.next(now + i * 25) : fromSource ? source.next(TICK_SECONDS / PULSES_PER_TICK) : SILENT;
     if (state.swap) p = { ampA: p.ampB, ampB: p.ampA, freqA: p.freqB, freqB: p.freqA };
     if (state.muted) p = { ...p, ampA: 0, ampB: 0 };
     pulses.push(p);
@@ -192,7 +202,7 @@ function tick() {
   state.lastPulse = pulses[pulses.length - 1];
   renderMeters();
 
-  if (fromGenerator && $('genAuto').checked && ++state.ticks % AUTO_CHANGE_TICKS === 0) {
+  if (fromSource && state.source === 'generator' && $('genAuto').checked && ++state.ticks % AUTO_CHANGE_TICKS === 0) {
     generator.randomize();
     saveSettings();
     renderGenerator();
@@ -209,9 +219,18 @@ function startClock() {
   }
 }
 
-function setPlaying(playing) {
+/** Plays or stops. Playing another source switches to it, as Howl's Player.switchPulseSource. */
+function setPlaying(playing, source = state.source) {
   if (playing && riderActive()) return;
-  if (state.playing === playing) return;
+  if (playing === state.playing && (!playing || source === state.source)) return;
+  if (playing) {
+    state.source = source;
+    // Manual starts from the centre every time, as in ManualViewModel.start()
+    if (source === 'manual') {
+      manual.reset();
+      touchpads.forEach(pad => pad.reset());
+    }
+  }
   state.playing = playing;
   if (!playing) {
     // Pause and stop end the stream: the Rider must go quiet at once, not freeze on the last pulse
@@ -219,8 +238,11 @@ function setPlaying(playing) {
     encoders.forEach(e => e.reset());
   }
   renderPlay();
+  renderManual();
   renderGeneratorHint();
 }
+
+const isPlaying = source => state.playing && state.source === source;
 
 // ---- Rider --------------------------------------------------------------------------------------
 
@@ -487,9 +509,11 @@ function renderMeters() {
 }
 
 function renderPlay() {
-  const path = state.playing ? 'M7 5h4v14H7zm6 0h4v14h-4z' : 'M8 5v14l11-7z';
-  $('genPlayPath').setAttribute('d', path);
+  const path = source => (isPlaying(source) ? 'M7 5h4v14H7zm6 0h4v14h-4z' : 'M8 5v14l11-7z');
+  $('genPlayPath').setAttribute('d', path('generator'));
+  $('manualPlayPath').setAttribute('d', path('manual'));
   $('genPlay').disabled = riderActive();
+  $('manualPlay').disabled = riderActive();
 }
 
 function renderMute() {
@@ -722,10 +746,27 @@ function renderGenerator() {
   renderGeneratorHint();
 }
 
+function renderManual() {
+  const playing = isPlaying('manual');
+  $('touchpads').hidden = !playing;
+  $('manualHint').hidden = playing;
+  $('manualHint').textContent = riderActive()
+    ? "Manual control is off while you're the Rider: your Driver is in control."
+    : 'Press play to begin manual control.';
+}
+
+function renderManualSettings() {
+  const { centerRate, smoothing } = settings.manual;
+  $('setCenterRate').value = centerRate;
+  $('setSmoothing').value = smoothing;
+  $('centerRateOut').textContent = centerRate.toFixed(2);
+  $('smoothingOut').textContent = smoothing.toFixed(2);
+}
+
 function renderGeneratorHint() {
   let hint;
   if (riderActive()) hint = "The generator is off while you're the Rider: your Driver is in control.";
-  else if (driverBound()) hint = state.playing ? 'Streaming these waves to your Rider.' : 'Press play to send these waves to your Rider.';
+  else if (driverBound()) hint = isPlaying('generator') ? 'Streaming these waves to your Rider.' : 'Press play to send these waves to your Rider.';
   else if (driverActive()) hint = 'Waiting for the Rider…';
   else if (coyote.ready) hint = 'Plays on your Coyote. Start a Driver session on the Remote tab to send it to a Rider instead.';
   else hint = 'Connect a Coyote to feel it yourself, or join a Rider as the Driver on the Remote tab.';
@@ -756,6 +797,7 @@ function renderAll() {
   renderFreqRange();
   renderDevice();
   renderRemote();
+  renderManual();
   renderGeneratorHint();
 }
 
@@ -776,6 +818,7 @@ function selectTab(name) {
   if (wide && name === 'remote') name = state.mainTab;
   state.tab = name;
   if (name !== 'remote') state.mainTab = name;
+  if (name !== 'manual') touchpads.forEach(pad => pad.reset());
   if (remoteShowing()) state.unread = 0;
   renderPopups();
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
@@ -819,7 +862,23 @@ function wire() {
   };
   $('swapBtn').onclick = () => { state.swap = !state.swap; renderToolbar(); };
   $('chartBtn').onclick = () => setChartMode(CHART_MODES[(CHART_MODES.indexOf(state.chartMode) + 1) % CHART_MODES.length]);
-  $('genPlay').onclick = () => setPlaying(!state.playing);
+  $('genPlay').onclick = () => setPlaying(!isPlaying('generator'), 'generator');
+  $('manualPlay').onclick = () => setPlaying(!isPlaying('manual'), 'manual');
+  $('manualSettingsBtn').onclick = () => {
+    const panel = $('manualSettings');
+    panel.hidden = !panel.hidden;
+    $('manualSettingsBtn').setAttribute('aria-expanded', String(!panel.hidden));
+  };
+  const manualSetting = (id, key, [min, max]) => {
+    $(id).oninput = e => {
+      settings.manual[key] = clamp(Number(e.target.value) || 0, min, max);
+      manual.smoothing = settings.manual.smoothing;
+      renderManualSettings();
+    };
+    $(id).onchange = () => saveSettings();
+  };
+  manualSetting('setCenterRate', 'centerRate', CENTER_RATE_RANGE);
+  manualSetting('setSmoothing', 'smoothing', SMOOTHING_RANGE);
 
   const onFreq = which => () => {
     let lo = Number($('freqMin').value);
@@ -937,6 +996,7 @@ function wire() {
 
 wire();
 renderSettings();
+renderManualSettings();
 renderGenerator();
 renderAll();
 startClock();
