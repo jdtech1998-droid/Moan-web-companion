@@ -10,6 +10,7 @@
   --secondary-container: #494458;
   --on-secondary-container: #E8DEF8;
   --tertiary: #E89BB4;
+  --on-tertiary: #492533;
   --error: #FFB4AB;
   --on-error: #690005;
   --error-container: #93000A;
@@ -47,6 +48,7 @@
     --secondary-container: #D3C0F2;
     --on-secondary-container: #1D192B;
     --tertiary: #990005;
+    --on-tertiary: #FFFFFF;
     --error: #BA1A1A;
     --on-error: #FFFFFF;
     --error-container: #FFDAD6;

@@ -14,35 +14,33 @@
     <!-- Power header, as on the Android app -->
     <header class="power-header">
       <div class="channel" data-channel="0">
-        <div class="power-value"><span class="power-number" id="powerA">0</span></div>
-        <div class="power-max" id="maxA"></div>
+        <div class="channel-meter" id="meterA"></div>
+        <div class="power-value"><span class="power-number" id="powerA">0</span><span class="power-max" id="maxA"></span></div>
         <div class="power-buttons">
-          <button class="btn-tonal square" data-power="0" data-delta="-1" aria-label="Decrease A"><span class="sym">−</span><span>A</span></button>
-          <button class="btn-tonal square" data-power="0" data-delta="1" aria-label="Increase A"><span class="sym">+</span><span>A</span></button>
+          <button class="btn-tonal square" data-power="0" data-delta="-1" aria-label="Decrease A (hold for 0)" title="Hold to set A to 0"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M200,520v-80h560v80L200,520Z"/></svg><span>A</span></button>
+          <button class="btn-tonal square" data-power="0" data-delta="1" aria-label="Increase A"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M440,520L200,520v-80h240v-240h80v240h240v80L520,520v240h-80v-240Z"/></svg><span>A</span></button>
         </div>
       </div>
-      <div class="meters" aria-hidden="true">
-        <div class="meter"><div class="meter-fill a" id="meterA"></div></div>
-        <div class="meter"><div class="meter-fill b" id="meterB"></div></div>
-      </div>
       <div class="channel" data-channel="1">
-        <div class="power-value"><span class="power-number" id="powerB">0</span></div>
-        <div class="power-max" id="maxB"></div>
+        <div class="channel-meter" id="meterB"></div>
+        <div class="power-value"><span class="power-number" id="powerB">0</span><span class="power-max" id="maxB"></span></div>
         <div class="power-buttons">
-          <button class="btn-tonal square" data-power="1" data-delta="-1" aria-label="Decrease B"><span class="sym">−</span><span>B</span></button>
-          <button class="btn-tonal square" data-power="1" data-delta="1" aria-label="Increase B"><span class="sym">+</span><span>B</span></button>
+          <button class="btn-tonal square" data-power="1" data-delta="-1" aria-label="Decrease B (hold for 0)" title="Hold to set B to 0"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M200,520v-80h560v80L200,520Z"/></svg><span>B</span></button>
+          <button class="btn-tonal square" data-power="1" data-delta="1" aria-label="Increase B"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M440,520L200,520v-80h240v-240h80v240h240v80L520,520v240h-80v-240Z"/></svg><span>B</span></button>
         </div>
       </div>
 
       <div class="header-row">
-        <button class="btn-tonal pill wide" id="muteBtn" aria-pressed="false">
+        <button class="btn-tonal tool wide" id="muteBtn" aria-pressed="false">
           <svg viewBox="0 0 24 24" class="icon" id="muteIcon"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path class="mute-x" d="M16 9l5 5m0-5l-5 5" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-          <span id="muteLabel">Muted</span>
+          <span id="muteLabel">Mute</span>
         </button>
-        <button class="btn-tonal pill" id="playBtn" aria-label="Play or pause generator">
-          <svg viewBox="0 0 24 24" class="icon"><path id="playIconPath" d="M8 5v14l11-7z"/></svg>
-        </button>
+        <button class="btn-tonal tool" id="autoBtn" aria-pressed="false" aria-label="Auto-increase power" title="Auto-increase power"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M340,800q-125,0 -212.5,-87.5T40,500q0,-125 87.5,-212.5T340,200q52,0 98,16.5t84,45.5l42,-42 56,56 -42,42q29,38 45.5,84.5T640,500q0,125 -87.5,212.5T340,800ZM740,800v-488l-44,44 -56,-56 140,-140 140,140 -57,56 -43,-43v487h-80ZM240,160v-80h200v80L240,160ZM340,720q92,0 156,-64t64,-156q0,-92 -64,-156t-156,-64q-92,0 -156,64t-64,156q0,92 64,156t156,64ZM300,540h80v-200h-80v200ZM340,500Z"/></svg></button>
+        <button class="btn-tonal tool" id="chartBtn" aria-pressed="false" aria-label="Pulse chart: Off" title="Pulse chart: Off"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="m140,740 l-60,-60 300,-300 160,160 284,-320 56,56 -340,384 -160,-160 -240,240Z"/></svg></button>
+        <button class="btn-tonal tool" id="swapBtn" aria-pressed="false" aria-label="Swap channels" title="Swap channels"><svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M280,800 L80,600l200,-200 56,57 -103,103h287v80L233,640l103,103 -56,57ZM680,560 L624,503 727,400L440,400v-80h287L624,217l56,-57 200,200 -200,200Z"/></svg></button>
       </div>
+
+      <div class="pulse-chart" id="pulseChart" hidden></div>
 
       <div class="freq-range">
         <span id="freqMinLabel">10Hz</span>
@@ -56,17 +54,29 @@
     </header>
 
     <nav class="tabs" role="tablist">
+      <button role="tab" class="tab" data-tab="player" aria-selected="false">
+        <svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="m380,660 l280,-180 -280,-180v360ZM160,800q-33,0 -56.5,-23.5T80,720v-480q0,-33 23.5,-56.5T160,160h640q33,0 56.5,23.5T880,240v480q0,33 -23.5,56.5T800,800L160,800ZM160,720h640v-480L160,240v480ZM160,720v-480,480Z"/></svg>
+        <span>Player</span>
+      </button>
+      <button role="tab" class="tab" data-tab="generator" aria-selected="false">
+        <svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M750,346q-27,27 -62,41t-70,14q-35,0 -69,-13.5T488,346l-75,-75q-15,-15 -34,-22.5t-39,-7.5q-20,0 -39,7.5T267,271l-75,75 -57,-57 75,-75q27,-27 61,-40.5t69,-13.5q35,0 68.5,13.5T469,214l75,75q16,16 35,23.5t39,7.5q20,0 39.5,-7.5T693,289l75,-75 57,57 -75,75ZM750,546q-27,27 -61.5,40.5T619,600q-35,0 -69.5,-13.5T488,546l-75,-75q-15,-15 -34,-22.5t-39,-7.5q-20,0 -39,7.5T267,471l-75,75 -57,-56 75,-76q27,-27 61,-40.5t69,-13.5q35,0 68.5,13.5T469,414l75,75q16,16 35,23.5t39,7.5q20,0 39.5,-7.5T693,489l75,-75 57,57 -75,75ZM749,746q-27,27 -61,40.5T619,800q-35,0 -69.5,-13.5T488,746l-76,-75q-15,-15 -34,-22.5t-39,-7.5q-20,0 -39,7.5T266,671l-75,75 -56,-56 75,-76q27,-27 61,-40.5t69,-13.5q35,0 68.5,13.5T469,614l75,75q16,16 35.5,23.5T619,720q20,0 39,-7.5t35,-23.5l75,-75 56,57 -75,75Z"/></svg>
+        <span>Generator</span>
+      </button>
+      <button role="tab" class="tab" data-tab="activity" aria-selected="false">
+        <svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="m240,762 l79,-32q-10,-29 -18.5,-59T287,611l-47,32v119ZM400,720h160q18,-40 29,-97.5T600,505q0,-99 -33,-187.5T480,181q-54,48 -87,136.5T360,505q0,60 11,117.5t29,97.5ZM480,520q-33,0 -56.5,-23.5T400,440q0,-33 23.5,-56.5T480,360q33,0 56.5,23.5T560,440q0,33 -23.5,56.5T480,520ZM720,762v-119l-47,-32q-5,30 -13.5,60T641,730l79,32ZM480,79q99,72 149.5,183T680,520l84,56q17,11 26.5,29t9.5,38v237l-199,-80L359,800L160,880v-237q0,-20 9.5,-38t26.5,-29l84,-56q0,-147 50.5,-258T480,79Z"/></svg>
+        <span>Activity</span>
+      </button>
+      <button role="tab" class="tab" data-tab="manual" aria-selected="false">
+        <svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="m272,520 l208,120 208,-120 -168,-97v137h-80v-137l-168,97ZM440,331v-17q-44,-13 -72,-49.5T340,180q0,-58 41,-99t99,-41q58,0 99,41t41,99q0,48 -28,84.5T520,314v17l280,161q19,11 29.5,29.5T840,562v76q0,22 -10.5,40.5T800,708L520,869q-19,11 -40,11t-40,-11L160,708q-19,-11 -29.5,-29.5T120,638v-76q0,-22 10.5,-40.5T160,492l280,-161ZM440,709L200,571v67l280,162 280,-162v-67L520,709q-19,11 -40,11t-40,-11ZM522.5,222.5Q540,205 540,180t-17.5,-42.5Q505,120 480,120t-42.5,17.5Q420,155 420,180t17.5,42.5Q455,240 480,240t42.5,-17.5ZM480,800Z"/></svg>
+        <span>Manual</span>
+      </button>
       <button role="tab" class="tab" data-tab="remote" aria-selected="true">
         <svg viewBox="0 0 24 24" class="icon"><path d="M12 3a9 9 0 00-9 9h2a7 7 0 0114 0h2a9 9 0 00-9-9zm0 4a5 5 0 00-5 5h2a3 3 0 016 0h2a5 5 0 00-5-5zm-1 6v8h2v-8z"/></svg>
         <span>Remote</span>
         <span class="tab-badge" id="remoteBadge" hidden></span>
       </button>
-      <button role="tab" class="tab" data-tab="generator" aria-selected="false">
-        <svg viewBox="0 0 24 24" class="icon"><path d="M2 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0M2 7c2-4 4-4 6 0s4 4 6 0 4-4 6 0M2 17c2-4 4-4 6 0s4 4 6 0 4-4 6 0" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
-        <span>Generator</span>
-      </button>
       <button role="tab" class="tab" data-tab="settings" aria-selected="false">
-        <svg viewBox="0 0 24 24" class="icon"><path d="M19.4 13a7.5 7.5 0 000-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 00-1.7-1L15 3.3h-4l-.4 2.6a7.6 7.6 0 00-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 000 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 001.7 1l.4 2.6h4l.4-2.6a7.6 7.6 0 001.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z" transform="translate(-1 0)"/></svg>
+        <svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="m370,880 l-16,-128q-13,-5 -24.5,-12T307,725l-119,50L78,585l103,-78q-1,-7 -1,-13.5v-27q0,-6.5 1,-13.5L78,375l110,-190 119,50q11,-8 23,-15t24,-12l16,-128h220l16,128q13,5 24.5,12t22.5,15l119,-50 110,190 -103,78q1,7 1,13.5v27q0,6.5 -2,13.5l103,78 -110,190 -118,-50q-11,8 -23,15t-24,12L590,880L370,880ZM440,800h79l14,-106q31,-8 57.5,-23.5T639,633l99,41 39,-68 -86,-65q5,-14 7,-29.5t2,-31.5q0,-16 -2,-31.5t-7,-29.5l86,-65 -39,-68 -99,42q-22,-23 -48.5,-38.5T533,266l-13,-106h-79l-14,106q-31,8 -57.5,23.5T321,327l-99,-41 -39,68 86,64q-5,15 -7,30t-2,32q0,16 2,31t7,30l-86,65 39,68 99,-42q22,23 48.5,38.5T427,694l13,106ZM482,620q58,0 99,-41t41,-99q0,-58 -41,-99t-99,-41q-59,0 -99.5,41T342,480q0,58 40.5,99t99.5,41ZM480,480Z"/></svg>
         <span>Settings</span>
       </button>
     </nav>
@@ -137,6 +147,13 @@
         <button class="estop" id="estopBtn" hidden>E-STOP</button>
       </section>
 
+      <section class="panel" id="tab-player" role="tabpanel" hidden>
+        <div class="card coming-soon">
+          <div class="card-title">Player</div>
+          <p class="muted small center">Playing funscript and HWL files is coming to the web version soon.</p>
+        </div>
+      </section>
+
       <!-- GENERATOR -->
       <section class="panel" id="tab-generator" role="tabpanel" hidden>
         <div class="gen-grid" id="genGrid"></div>
@@ -154,6 +171,20 @@
         <p class="muted small" id="genHint"></p>
       </section>
 
+      <section class="panel" id="tab-activity" role="tabpanel" hidden>
+        <div class="card coming-soon">
+          <div class="card-title">Activity</div>
+          <p class="muted small center">The Activity tab is coming to the web version soon.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-manual" role="tabpanel" hidden>
+        <div class="card coming-soon">
+          <div class="card-title">Manual</div>
+          <p class="muted small center">Manual touchpad control is coming to the web version soon.</p>
+        </div>
+      </section>
+
       <!-- SETTINGS -->
       <section class="panel" id="tab-settings" role="tabpanel" hidden>
         <div class="card">
@@ -161,6 +192,12 @@
           <div class="setting"><span>Power limit A (when not a Rider)</span><input type="number" min="0" max="200" id="setLimitA"></div>
           <div class="setting"><span>Power limit B (when not a Rider)</span><input type="number" min="0" max="200" id="setLimitB"></div>
           <div class="setting"><span>Power step</span><input type="number" min="1" max="20" id="setStep"></div>
+          <div class="setting"><span>Auto-increase delay A (seconds)</span><input type="number" min="1" max="600" id="setAutoDelayA"></div>
+          <div class="setting"><span>Auto-increase delay B (seconds)</span><input type="number" min="1" max="600" id="setAutoDelayB"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Display</div>
+          <div class="setting"><span>Pulse chart style</span><select id="setChartStyle"><option>Point</option><option>Line</option></select></div>
         </div>
         <div class="card">
           <div class="card-title">Coyote 3</div>

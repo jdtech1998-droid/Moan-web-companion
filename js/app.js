@@ -6,6 +6,7 @@ import { RemoteStream } from './stream.js';
 import { Generator, SHAPE_NAMES, SPEED_RANGE } from './generator.js';
 import { RiderSession, DriverSession } from './remote.js';
 import { FEEDBACK_PRESETS, RIDER_ESTOP_PRESET, isSafety, isStop } from './feedback.js';
+import { PulseHistory, PulseChart, CHART_MODES, CHART_STYLES } from './pulsechart.js';
 
 const $ = id => document.getElementById(id);
 
@@ -16,6 +17,8 @@ const DEFAULT_SETTINGS = {
   role: 'rider',
   limits: [70, 70], // local power limits, like Howl's default; a Rider session uses its own MAX instead
   step: 1,
+  autoDelay: [120, 120], // seconds between auto-increase steps, per channel (Howl's default)
+  chartStyle: 'Point',
   balance: { frequencyBalanceA: 200, frequencyBalanceB: 200, intensityBalanceA: 0, intensityBalanceB: 0 },
   relayUrl: DEFAULT_RELAY_URL,
   freqRange: [10, 100], // output frequency range, Hz
@@ -55,6 +58,8 @@ const generator = new Generator();
 if (Array.isArray(settings.generator) && settings.generator.length === 2) generator.channels = settings.generator;
 const stream = new RemoteStream();
 const encoders = [new ChannelEncoder(), new ChannelEncoder()];
+const pulseHistory = new PulseHistory();
+const pulseChart = new PulseChart(document.getElementById('pulseChart'));
 
 const state = {
   session: null, // RiderSession | DriverSession
@@ -67,6 +72,11 @@ const state = {
   riderMax: [null, null], // Driver: the Rider's reported MAX
   muted: false,
   playing: false,
+  // Header toggles. Not saved: like the Android app, a reload starts with them off
+  autoIncrease: false,
+  autoElapsedMs: [0, 0],
+  swap: false,
+  chartMode: 'Off',
   feed: [],
   feedSeq: 0,
   unread: 0, // Driver: feedback that arrived while the Remote tab wasn't showing
@@ -104,6 +114,25 @@ function setPower(ch, value, { send = true } = {}) {
   renderPower();
 }
 
+/** A power change made on this page (buttons, auto-increase). A Rider reports it so the Driver's dial stays in step. */
+function adjustPower(ch, value) {
+  setPower(ch, value);
+  if (riderBound()) state.session.send(cmd.power(ch, state.power[ch]));
+}
+
+/** Auto-increase power, as in Howl's MainOptions: +1 on each channel that is above 0, every autoDelay seconds. */
+function autoIncreasePower(elapsedMs) {
+  if (!state.autoIncrease || state.muted) return;
+  for (const ch of [0, 1]) {
+    if (state.power[ch] === 0) continue;
+    state.autoElapsedMs[ch] += elapsedMs;
+    if (state.autoElapsedMs[ch] >= settings.autoDelay[ch] * 1000) {
+      state.autoElapsedMs[ch] = 0;
+      adjustPower(ch, state.power[ch] + 1);
+    }
+  }
+}
+
 let limitSync = null;
 let limitDirty = false;
 /** Coalesces BF writes: a slider drag sends the latest value, not every step. */
@@ -130,9 +159,12 @@ function tick() {
   const pulses = [];
   for (let i = 0; i < PULSES_PER_TICK; i++) {
     let p = fromStream ? stream.next(now + i * 25) : fromGenerator ? generator.next(TICK_SECONDS / PULSES_PER_TICK) : SILENT;
+    if (state.swap) p = { ampA: p.ampB, ampB: p.ampA, freqA: p.freqB, freqB: p.freqA };
     if (state.muted) p = { ...p, ampA: 0, ampB: 0 };
     pulses.push(p);
+    pulseHistory.add(p);
   }
+  autoIncreasePower(TICK_SECONDS * 1000);
 
   // Driver: the generator's waves go to the Rider, 4 pulses per channel per message, as DriverRelayOutput sends them
   if (driverBound() && state.playing) {
@@ -442,22 +474,49 @@ function renderPower() {
   $('maxB').textContent = `/ ${powerLimit(1)} MAX`;
 }
 
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+
+/** The power bar behind each channel, as in Howl's PowerLevelPanel: height is amplitude, red to yellow is frequency. */
 function renderMeters() {
-  $('meterA').style.height = `${Math.round(state.lastPulse.ampA * 100)}%`;
-  $('meterB').style.height = `${Math.round(state.lastPulse.ampB * 100)}%`;
+  const yellowGreen = darkQuery.matches ? 255 : 223;
+  for (const [id, amp, freq] of [['meterA', state.lastPulse.ampA, state.lastPulse.freqA], ['meterB', state.lastPulse.ampB, state.lastPulse.freqB]]) {
+    const meter = $(id);
+    meter.style.height = `${Math.round(clamp(amp, 0, 1) * 100)}%`;
+    meter.style.setProperty('--meter-rgb', `255, ${Math.round(clamp(freq, 0, 1) * yellowGreen)}, 0`);
+  }
 }
 
 function renderPlay() {
   const path = state.playing ? 'M7 5h4v14H7zm6 0h4v14h-4z' : 'M8 5v14l11-7z';
-  $('playIconPath').setAttribute('d', path);
   $('genPlayPath').setAttribute('d', path);
-  $('playBtn').disabled = riderActive();
   $('genPlay').disabled = riderActive();
 }
 
 function renderMute() {
   $('muteBtn').setAttribute('aria-pressed', String(state.muted));
   $('muteLabel').textContent = state.muted ? 'Muted' : 'Mute';
+}
+
+function renderToolbar() {
+  $('autoBtn').setAttribute('aria-pressed', String(state.autoIncrease));
+  $('swapBtn').setAttribute('aria-pressed', String(state.swap));
+  const chart = $('chartBtn');
+  chart.setAttribute('aria-pressed', String(state.chartMode !== 'Off'));
+  chart.title = `Pulse chart: ${state.chartMode}`;
+  chart.setAttribute('aria-label', chart.title);
+}
+
+let chartFrame = null;
+function setChartMode(mode) {
+  state.chartMode = mode;
+  pulseChart.setMode(mode);
+  renderToolbar();
+  cancelAnimationFrame(chartFrame);
+  const draw = () => {
+    pulseChart.draw(pulseHistory, settings.chartStyle);
+    chartFrame = requestAnimationFrame(draw);
+  };
+  if (mode !== 'Off') draw();
 }
 
 function renderFreqRange() {
@@ -677,6 +736,9 @@ function renderSettings() {
   $('setLimitA').value = settings.limits[0];
   $('setLimitB').value = settings.limits[1];
   $('setStep').value = settings.step;
+  $('setAutoDelayA').value = settings.autoDelay[0];
+  $('setAutoDelayB').value = settings.autoDelay[1];
+  $('setChartStyle').value = settings.chartStyle;
   $('setFbA').value = settings.balance.frequencyBalanceA;
   $('setFbB').value = settings.balance.frequencyBalanceB;
   $('setIbA').value = settings.balance.intensityBalanceA;
@@ -690,6 +752,7 @@ function renderAll() {
   renderMeters();
   renderPlay();
   renderMute();
+  renderToolbar();
   renderFreqRange();
   renderDevice();
   renderRemote();
@@ -728,16 +791,35 @@ function wire() {
   });
 
   document.querySelectorAll('[data-power]').forEach(b => {
+    const ch = Number(b.dataset.power);
+    const delta = Number(b.dataset.delta);
+    let held = false;
     b.onclick = () => {
-      const ch = Number(b.dataset.power);
-      setPower(ch, state.power[ch] + Number(b.dataset.delta) * settings.step);
-      // A Rider's own change is reported so the Driver's dial stays in step
-      if (riderBound()) state.session.send(cmd.power(ch, state.power[ch]));
+      if (held) { held = false; return; }
+      adjustPower(ch, state.power[ch] + delta * settings.step);
     };
+    // Holding minus drops the channel straight to 0, as on the Android app
+    if (delta < 0) {
+      let timer = null;
+      const cancel = () => clearTimeout(timer);
+      b.onpointerdown = () => {
+        held = false;
+        timer = setTimeout(() => { held = true; adjustPower(ch, 0); }, 500);
+      };
+      b.onpointerup = b.onpointerleave = b.onpointercancel = cancel;
+      b.oncontextmenu = e => e.preventDefault();
+    }
   });
 
   $('muteBtn').onclick = () => { state.muted = !state.muted; renderMute(); };
-  $('playBtn').onclick = $('genPlay').onclick = () => setPlaying(!state.playing);
+  $('autoBtn').onclick = () => {
+    state.autoIncrease = !state.autoIncrease;
+    state.autoElapsedMs = [0, 0];
+    renderToolbar();
+  };
+  $('swapBtn').onclick = () => { state.swap = !state.swap; renderToolbar(); };
+  $('chartBtn').onclick = () => setChartMode(CHART_MODES[(CHART_MODES.indexOf(state.chartMode) + 1) % CHART_MODES.length]);
+  $('genPlay').onclick = () => setPlaying(!state.playing);
 
   const onFreq = which => () => {
     let lo = Number($('freqMin').value);
@@ -799,6 +881,12 @@ function wire() {
   numSetting('setLimitA', 0, POWER_MAX, v => { settings.limits[0] = v; limitChanged(); });
   numSetting('setLimitB', 0, POWER_MAX, v => { settings.limits[1] = v; limitChanged(); });
   numSetting('setStep', 1, 20, v => { settings.step = v; });
+  numSetting('setAutoDelayA', 1, 600, v => { settings.autoDelay[0] = v; });
+  numSetting('setAutoDelayB', 1, 600, v => { settings.autoDelay[1] = v; });
+  $('setChartStyle').onchange = e => {
+    settings.chartStyle = CHART_STYLES.includes(e.target.value) ? e.target.value : 'Point';
+    saveSettings();
+  };
   for (const [id, key] of [['setFbA', 'frequencyBalanceA'], ['setFbB', 'frequencyBalanceB'], ['setIbA', 'intensityBalanceA'], ['setIbB', 'intensityBalanceB']]) {
     numSetting(id, 0, 255, v => { settings.balance[key] = v; syncCoyoteLimits(); });
   }

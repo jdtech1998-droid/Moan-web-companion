@@ -59,33 +59,52 @@ a { color: var(--primary); }
 /* ---- Power header ---- */
 .power-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px 16px;
   padding-top: 12px;
 }
-.channel { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.power-value { height: 88px; display: flex; align-items: center; }
-.power-number { font-size: 80px; font-weight: 400; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
-.power-max { font-size: 13px; color: var(--on-surface-variant); min-height: 18px; margin-bottom: 4px; }
-.power-buttons { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; width: 100%; }
 
-.meters { display: flex; gap: 12px; align-items: stretch; padding-top: 4px; }
-.meter {
-  width: 22px;
-  border: 2px solid var(--outline);
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  background: var(--surface-container-highest);
+/* One channel, as Howl's PowerLevelPanel: the whole panel is the power bar, filling from the bottom */
+.channel {
+  position: relative; overflow: hidden; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 8px 8px 12px;
+  border-radius: 0 0 16px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 50%, transparent);
 }
-.meter-fill { width: 100%; height: 0; transition: height 90ms linear; }
-.meter-fill.a { background: var(--meter-a); }
-.meter-fill.b { background: var(--meter-b); }
+.channel > :not(.channel-meter) { position: relative; }
+.channel-meter {
+  --meter-rgb: 255, 0, 0;
+  position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+  background: linear-gradient(rgba(var(--meter-rgb), .45), rgba(var(--meter-rgb), .25));
+  box-shadow: inset 0 3px 0 rgba(var(--meter-rgb), .8);
+  transition: height 90ms linear;
+}
+@media (prefers-color-scheme: light) {
+  .channel-meter {
+    background: linear-gradient(rgba(var(--meter-rgb), .75), rgba(var(--meter-rgb), .55));
+    box-shadow: inset 0 3px 0 rgb(var(--meter-rgb));
+  }
+}
+.power-value { height: 88px; display: flex; align-items: flex-end; justify-content: center; gap: 6px; }
+.power-number { font-size: 80px; line-height: 1; font-weight: 400; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+.power-max { font-size: 13px; font-weight: 500; color: var(--tertiary); padding-bottom: 8px; white-space: nowrap; }
+.power-buttons { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; width: 100%; max-width: 190px; }
+.btn-tonal.square .icon { width: 30px; height: 30px; }
 
-.header-row { grid-column: 1 / -1; display: flex; gap: 14px; }
+/* Mute, Auto-increase, Pulse chart, Swap: highlighted in the tertiary colour while on, as on the Android app */
+.header-row { grid-column: 1 / -1; display: flex; gap: 8px; }
 .header-row .wide { flex: 1; min-width: 0; }
-.header-row .icon { width: 28px; height: 28px; }
+.header-row .icon { width: 26px; height: 26px; }
+.btn-tonal.tool { border-radius: 999px; min-height: 50px; padding: 0 18px; }
+.btn-tonal.tool[aria-pressed="true"] { background: var(--tertiary); color: var(--on-tertiary); }
+
+.pulse-chart { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.pulse-chart .chart {
+  width: 100%; aspect-ratio: 2; padding: 3px;
+  border: 2px solid var(--outline); border-radius: 12px;
+}
+.pulse-chart .chart.wide { grid-column: 1 / -1; aspect-ratio: 2.5; }
 #muteBtn[aria-pressed="false"] .mute-x { display: none; }
 
 .freq-range { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 500; }
@@ -105,17 +124,21 @@ a { color: var(--primary); }
 .dual-range input::-moz-range-track { background: none; }
 
 /* ---- Tabs ---- */
-.tabs { display: flex; border-bottom: 1px solid var(--outline-variant); margin: 16px -16px 0; }
+/* Six tabs don't fit a phone, so the row scrolls sideways like Android's scrollable tab row */
+.tabs {
+  display: flex; border-bottom: 1px solid var(--outline-variant); margin: 16px -16px 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 1;
-  min-width: 0;
+  flex: 1 0 auto;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 12px 4px 10px;
+  padding: 12px 10px 10px;
   color: var(--on-surface);
-  font-size: 18px; font-weight: 500;
+  font-size: 16px; font-weight: 500;
   position: relative;
 }
-.tab .icon { width: 30px; height: 30px; }
+.tab .icon { width: 28px; height: 28px; }
 .tab[aria-selected="true"] { color: var(--primary); }
 .tab[aria-selected="true"]::after {
   content: ""; position: absolute; left: 12%; right: 12%; bottom: -1px; height: 3px;
@@ -123,7 +146,7 @@ a { color: var(--primary); }
 }
 
 .tab-badge {
-  position: absolute; top: 6px; left: calc(50% + 10px);
+  position: absolute; top: 6px; left: calc(50% + 8px);
   min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
   background: var(--estop); color: var(--estop-text);
   font-size: 12px; font-weight: 700; line-height: 20px; text-align: center;
@@ -316,11 +339,11 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
   .power-value { height: 72px; }
   .power-header { gap: 10px 10px; }
   .power-buttons { gap: 8px; }
+  .btn-tonal.tool { padding: 0 12px; }
   .btn-tonal.square { border-radius: 18px; font-size: 18px; }
   .btn-tonal.square .sym { font-size: 28px; }
-  .meters { gap: 8px; }
-  .meter { width: 18px; }
-  .tab { font-size: 15px; }
+  .tabs { margin-left: -12px; margin-right: -12px; }
+  .tab { font-size: 14px; padding: 10px 8px 8px; }
   .gen-grid { grid-template-columns: 1fr; }
   .fb-text small { display: none; }
 }
@@ -339,8 +362,7 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
   }
   .power-header { grid-area: head; align-content: start; padding-top: 20px; overflow-y: auto; }
   .tabs { grid-area: tabs; margin: 12px 0 0; }
-  .tab { flex-direction: row; justify-content: center; gap: 10px; }
-  .tab .icon { width: 26px; height: 26px; }
+  .tab { font-size: 15px; padding: 12px 6px 10px; }
   .tab[data-tab="remote"] { display: none; }
   .content { display: contents; }
   .panel { grid-area: main; overflow-y: auto; padding: 16px 4px 24px; min-height: 0; }
@@ -356,3 +378,5 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 @container (max-width: 480px) {
   .gen-grid { grid-template-columns: 1fr; }
 }
+
+.coming-soon { padding: 32px 16px; }
