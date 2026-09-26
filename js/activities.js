@@ -1,11 +1,11 @@
 // The activities on the Activity tab, ported one to one from Howl's Activity.kt.
 // Controls are described as data (see the renderer in app.js) instead of Compose UI:
 //   { type: 'switch', label, get, set, heading? }
-//   { type: 'slider', label, min, max, step, get, set, disabled?, persist? }
+//   { type: 'slider', label, min, max, step, get, set, disabled?, persist?, digits? }
 //   { type: 'select', label, options: [[value, label]], get, set, disabled? }
 //   { type: 'smoother', label, smoother, targetRange, rateRange?, step?, disabled? }  (no rateRange: no rate slider)
 //   { type: 'buttons', buttons: [[label, onClick]], disabled? }
-//   { type: 'text', text, heading? }
+//   { type: 'text', text (string or function), heading?, warning? }
 // `disabled` is a function (checked on every refresh); `persist` saves the page's settings after a change.
 
 import {
@@ -1060,9 +1060,13 @@ export class SineTimeActivity extends Activity {
   }
 }
 
-// ---- The list the Activity tab picks from, in Howl's order ----------------------------------------
+// ---- The list the Activity tab picks from ---------------------------------------------------------
 
+// Howl's order, except the calibration activities come first so they are easy to find
 export const ACTIVITY_TYPES = [
+  { id: 'CALIBRATE_POWER', name: 'Calibrate power', icon: 'plug', create: ctx => new PowerCalibrationActivity(ctx) },
+  { id: 'CALIBRATE_FREQ', name: 'Calibrate frequency', icon: 'calibration', create: ctx => new FrequencyCalibrationActivity(ctx) },
+  { id: 'CALIBRATE_POSITION', name: 'Calibrate position', icon: 'swapvert', create: ctx => new PositionalCalibrationActivity(ctx) },
   { id: 'LICKS', name: 'Infinite licks', icon: 'grin_tongue', create: ctx => new LickActivity(ctx) },
   { id: 'PENETRATION', name: 'Penetration', icon: 'rocket', create: ctx => new PenetrationActivity(ctx) },
   { id: 'VIBRATOR', name: 'Sliding vibrator', icon: 'vibration', create: ctx => new VibroActivity(ctx) },
@@ -1070,9 +1074,6 @@ export const ACTIVITY_TYPES = [
   { id: 'CHAOS', name: 'Chaos', icon: 'chaos', create: ctx => new ChaosActivity(ctx) },
   { id: 'HJ', name: 'Luxury HJ', icon: 'hand', create: ctx => new LuxuryHJActivity(ctx) },
   { id: 'OPPOSITES', name: 'Opposites', icon: 'yin_yang', create: ctx => new OppositesActivity(ctx) },
-  { id: 'CALIBRATE_POWER', name: 'Calibrate power', icon: 'plug', create: ctx => new PowerCalibrationActivity(ctx) },
-  { id: 'CALIBRATE_FREQ', name: 'Calibrate frequency', icon: 'calibration', create: ctx => new FrequencyCalibrationActivity(ctx) },
-  { id: 'CALIBRATE_POSITION', name: 'Calibrate position', icon: 'swapvert', create: ctx => new PositionalCalibrationActivity(ctx) },
   { id: 'BJ', name: 'BJ Megamix', icon: 'lips', create: ctx => new BJActivity(ctx) },
   { id: 'FASTSLOW', name: 'Fast/slow', icon: 'speed', create: ctx => new FastSlowActivity(ctx) },
   { id: 'SIMPLEX', name: 'Simplex', icon: 'wave_triangle', create: ctx => new SimplexActivity(ctx) },
@@ -1099,7 +1100,8 @@ export class ActivityHost {
   }
 
   setCurrent(id) {
-    this.type = ACTIVITY_TYPES.find(t => t.id === id) ?? ACTIVITY_TYPES[0];
+    // An unknown id falls back to Infinite licks, not the first entry (a calibration activity)
+    this.type = ACTIVITY_TYPES.find(t => t.id === id) ?? ACTIVITY_TYPES.find(t => t.id === 'LICKS');
     this.instance = this.type.create(this.ctx);
     this.instance.initialise();
     this.onChange();

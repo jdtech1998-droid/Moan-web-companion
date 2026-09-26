@@ -162,6 +162,7 @@ a { color: var(--primary); }
   display: flex; flex-direction: column; gap: 10px;
 }
 .card-title { font-size: 20px; font-weight: 500; text-align: center; }
+.warning { color: var(--error); }
 .card-subtitle { font-size: 16px; font-weight: 500; text-align: center; margin-top: 4px; }
 .label { font-size: 13px; color: var(--on-surface-variant); }
 .muted { color: var(--on-surface-variant); margin: 0; }

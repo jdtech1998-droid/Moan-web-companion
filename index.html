@@ -304,7 +304,7 @@
         </div>
         <div class="card">
           <div class="card-title">Calibration</div>
-          <p class="muted small">Applied to your Coyote only. Use the calibration activities on the Activity tab to set these.</p>
+          <p class="muted small">Applied to your Coyote and the audio output. Use the calibration activities on the Activity tab to set these.</p>
           <label class="slider-setting">
             <span>Power balance</span><output id="calBalanceOut"></output>
             <input type="range" id="calBalance" min="0" max="1" step="0.01">
@@ -329,7 +329,7 @@
         </div>
         <div class="card">
           <div class="card-title">Tweaks</div>
-          <p class="muted small">Advanced settings for tinkerers. Applied to your Coyote only, before calibration. An amplitude feel above 1 makes quiet parts stronger.</p>
+          <p class="muted small">Advanced settings for tinkerers. Applied to your Coyote and the audio output, before calibration. An amplitude feel above 1 makes quiet parts stronger.</p>
           <div class="card-subtitle">Amplitude adjustments</div>
           <label class="slider-setting">
             <span>Amplitude feel A</span><output id="twAmpFeelAOut"></output>
@@ -371,6 +371,15 @@
           <div class="setting"><span>Top button</span><select id="pawTop"></select></div>
           <div class="setting"><span>Left button</span><select id="pawLeft"></select></div>
           <div class="setting"><span>Right button</span><select id="pawRight"></select></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Audio output</div>
+          <p class="muted small">Plays pulses as sound for stereostim and other audio-driven boxes: channel A on the left, B on the right, through this device's current sound output. Turn the volume down before you start, then raise it slowly. The page's power levels scale the sound unless "Always full volume" is on. It is always off when the page opens.</p>
+          <div class="setting"><span>Output</span><select id="audioType"></select></div>
+          <p class="muted small" id="audioDesc" hidden></p>
+          <p class="muted small warning" id="audioWarn" hidden></p>
+          <div class="controls" id="audioControls"></div>
+          <button class="btn-text" id="audioReset" hidden>Reset audio settings</button>
         </div>
         <div class="card">
           <div class="card-title">Coyote 3</div>

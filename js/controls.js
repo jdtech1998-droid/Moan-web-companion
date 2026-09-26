@@ -1,7 +1,7 @@
 // Builds form controls from the plain descriptions activities give (see activities.js) and keeps them in step
 // with values the activity changes by itself, such as a smoother's target in automatic mode.
 
-const fmt = v => Number(v).toFixed(2);
+const fmt = (v, digits = 2) => Number(v).toFixed(digits);
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -39,7 +39,12 @@ export function buildControls(container, controls, onPersist) {
 
   for (const c of controls) {
     if (c.type === 'text') {
-      container.append(el(c.heading ? 'h3' : 'p', c.heading ? 'controls-heading' : 'muted small', c.text));
+      // A function gives text that follows other settings (e.g. an estimate); `warning` shows it in the error colour
+      const node = el(c.heading ? 'h3' : 'p', c.heading ? 'controls-heading' : `muted small${c.warning ? ' warning' : ''}`);
+      container.append(node);
+      const text = () => (typeof c.text === 'function' ? c.text() : c.text);
+      node.textContent = text();
+      if (typeof c.text === 'function') refreshers.push(() => { node.textContent = text(); });
     } else if (c.type === 'switch') {
       const row = el('label', `switch-row${c.heading ? ' heading' : ''}`);
       const box = el('input', 'switch');
@@ -52,13 +57,14 @@ export function buildControls(container, controls, onPersist) {
     } else if (c.type === 'slider') {
       const row = el('label', 'slider-setting');
       const out = el('output');
-      const input = range(c.min, c.max, c.step, v => { c.set(v); out.textContent = fmt(v); });
+      // Shows what set() kept, which may differ (e.g. a minimum held below its maximum), and refreshes the rest
+      const input = range(c.min, c.max, c.step, v => { c.set(v); out.textContent = fmt(c.get(), c.digits); refresh(); });
       if (c.persist) input.addEventListener('change', onPersist);
       row.append(el('span', null, c.label), out, input);
       container.append(row);
       refreshers.push(() => {
         setIfIdle(input, c.get());
-        if (!input.dataset.dragging) out.textContent = fmt(c.get());
+        if (!input.dataset.dragging) out.textContent = fmt(c.get(), c.digits);
         input.disabled = disabled(c);
         row.classList.toggle('disabled', input.disabled);
       });

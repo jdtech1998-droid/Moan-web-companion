@@ -15,6 +15,8 @@ import { ActivityHost, ACTIVITY_TYPES, ACTIVITY_OPTION_DEFAULTS, DEFAULT_EXCLUDE
 import { buildControls } from './controls.js';
 import { CALIBRATION_DEFAULTS, TWEAK_DEFAULTS, applyCalibration, applyTweaks } from './calibration.js';
 import { PawPrints, PAW_ACTIONS, PAW_DEFAULTS, actionsFor } from './pawprints.js';
+import { AudioOut } from './audioout.js';
+import { AUDIO_TYPES, AUDIO_DEFAULTS, WAVE_SHAPES, estimateBurst, waveletDutyAt100Hz } from './audiodsp.js';
 import { icon } from './icons.js';
 import { Player, Recorder, openFile, writeHWL, PLAYER_DEFAULTS, SPEED_RANGE as PLAYBACK_SPEED_RANGE, FINE_TUNE_RANGE } from './player.js';
 
@@ -35,6 +37,7 @@ const DEFAULT_SETTINGS = {
   calibration: { ...CALIBRATION_DEFAULTS },
   tweaks: { ...TWEAK_DEFAULTS },
   paw: { ...PAW_DEFAULTS }, // what each Paw Prints button does
+  audio: structuredClone(AUDIO_DEFAULTS), // per audio output type; which one plays is never saved (always Off on load)
   showFunscriptMeters: true,
   activity: { changeProbability: 0, excluded: [...DEFAULT_EXCLUDED], options: { ...ACTIVITY_OPTION_DEFAULTS } },
   balance: { frequencyBalanceA: 200, frequencyBalanceB: 200, intensityBalanceA: 0, intensityBalanceB: 0 },
@@ -53,6 +56,7 @@ function loadSettings() {
       calibration: { ...DEFAULT_SETTINGS.calibration, ...(oldCurve != null && { positionalEffectCurve: oldCurve }), ...saved.calibration },
       tweaks: { ...DEFAULT_SETTINGS.tweaks, ...saved.tweaks },
       paw: { ...DEFAULT_SETTINGS.paw, ...saved.paw },
+      audio: Object.fromEntries(Object.entries(AUDIO_DEFAULTS).map(([k, d]) => [k, { ...d, ...saved.audio?.[k] }])),
       activity: { ...DEFAULT_SETTINGS.activity, ...saved.activity, options: { ...DEFAULT_SETTINGS.activity.options, ...saved.activity?.options } } };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
@@ -80,6 +84,7 @@ const AUTO_CHANGE_TICKS = 300; // 30s
 
 let coyote = new Coyote3(); // replaced by the right driver when a box is picked
 const paw = new PawPrints();
+const audio = new AudioOut();
 const generator = new Generator();
 if (Array.isArray(settings.generator) && settings.generator.length === 2) generator.channels = settings.generator;
 const stream = new RemoteStream();
@@ -221,11 +226,13 @@ function tick() {
     }
   }
 
-  // Local Coyote plays the Rider stream or the local generator. A Driver's waves are only felt by the Rider.
+  // Local devices play the Rider stream or the local generator. A Driver's waves are only felt by the Rider.
   // Tweaks then calibration apply here only, as in Howl's device outputs: meters, recorder and Driver stream stay unadjusted.
+  const local = driverActive() ? pulses.map(() => SILENT)
+    : pulses.map(p => applyCalibration(applyTweaks(p, settings.tweaks), settings.calibration));
+  // The audio output fades in and out with playback, as Howl's AudioEngine does
+  audio.send(local, state.power, fromSource || fromStream, settings.freqRange, settings.audio);
   if (coyote.ready) {
-    const local = driverActive() ? pulses.map(() => SILENT)
-      : pulses.map(p => applyCalibration(applyTweaks(p, settings.tweaks), settings.calibration));
     const [fMin, fMax] = settings.freqRange;
     coyote.sendPulses(state.power[0], state.power[1], local.map(p => ({
       freqAHz: fMin + (fMax - fMin) * p.freqA,
@@ -353,6 +360,7 @@ function riderZero() {
   setPower(0, 0, { send: false });
   setPower(1, 0, { send: false });
   stream.silence();
+  audio.stopNow(); // without the usual half-second fade
 }
 
 function riderEmergencyStop() {
@@ -445,6 +453,7 @@ function handleDriverCommand(c) {
 }
 
 function driverEmergencyStop() {
+  audio.stopNow(); // without the usual half-second fade
   setPower(0, 0, { send: false });
   setPower(1, 0, { send: false });
   setPlaying(false);
@@ -639,6 +648,7 @@ function renderDevice() {
     return;
   }
   let status = coyote.ready ? `${coyote.model}${coyote.battery != null ? ` · ${coyote.battery}%` : ''}` : (coyote.statusText ?? 'Disconnected');
+  if (audio.active) status = `${coyote.ready ? status : 'No Coyote'} · Audio`;
   if (paw.ready) {
     // "Disconnected · Paw" would read as the Paw being disconnected
     if (status === 'Disconnected') status = 'No Coyote';
@@ -663,6 +673,74 @@ function attachCoyote() {
       state.session.send(cmd.power(1, state.power[1]));
     }
   };
+}
+
+// ---- Audio output card ----
+
+const AUDIO_KEYS = { CONTINUOUS: 'continuous', WAVELET: 'wavelet', MULTIPULSE: 'multipulse' };
+
+/** The settings for one audio output type, as Howl's settings screens have them. */
+function audioControls(type) {
+  const key = AUDIO_KEYS[type];
+  const s = settings.audio[key];
+  const changed = () => audio.configure(settings.audio);
+  const slider = (label, field, min, max, step, digits = 0, fix = v => v) => ({
+    type: 'slider', label, min, max, step, digits, persist: true,
+    get: () => s[field], set: v => { s[field] = fix(v); changed(); },
+  });
+  const toggle = (label, field) => ({ type: 'switch', label, persist: true, get: () => s[field], set: v => { s[field] = v; changed(); } });
+  const shape = (label, field) => ({ type: 'select', label, options: WAVE_SHAPES, persist: true, get: () => s[field], set: v => { s[field] = v; changed(); } });
+  const fullVolume = toggle('Always full volume (ignore power)', 'fullVolume');
+  if (type === 'CONTINUOUS') {
+    return [
+      fullVolume,
+      shape('Wave shape', 'waveShape'),
+      // The minimum stays at least 50Hz below the maximum and the other way round, as in Howl
+      slider('Minimum allowed frequency (Hz)', 'minFrequency', 50, 4000, 50, 0, v => Math.min(Math.round(v), s.maxFrequency - 50)),
+      slider('Maximum allowed frequency (Hz)', 'maxFrequency', 50, 4000, 50, 0, v => Math.max(Math.round(v), s.minFrequency + 50)),
+    ];
+  }
+  if (type === 'WAVELET') {
+    return [
+      fullVolume,
+      shape('Carrier wave shape', 'carrierShape'),
+      slider('Carrier wave frequency (Hz)', 'carrierFrequency', 600, 2000, 10),
+      slider('Wavelet width (in carrier wave cycles)', 'waveletWidth', 3, 10, 1),
+      slider('Wavelet fade in/out proportion', 'waveletFade', 0, 1, 0.01, 2),
+      { type: 'text', text: () => `Estimated duty cycle at 100Hz: ${waveletDutyAt100Hz(s)}%` },
+    ];
+  }
+  const estimate = hz => ({
+    type: 'text',
+    text: () => {
+      const e = estimateBurst(hz, s);
+      return `Estimated duty cycle @ ${hz} Hz: ${e.dutyCyclePercent}%${e.burstFits ? '' : ' (bursts do not fit at this frequency)'}`;
+    },
+  });
+  return [
+    fullVolume,
+    slider('Number of pulses per burst (at 1Hz)', 'lowFreqPulses', 1, 15, 1),
+    slider('Number of pulses per burst (at 100Hz)', 'highFreqPulses', 1, 15, 1),
+    slider('Pulse width (microseconds)', 'pulseWidth', 250, 1000, 10),
+    slider('Delay between each pulse in burst (microseconds)', 'interPulseDelay', 0, 1000, 10),
+    slider('Intra pulse delay (microseconds)', 'intraPulseDelay', 0, 100, 10),
+    toggle('Prevent interference', 'preventInterference'),
+    ...[10, 20, 50, 100].map(estimate),
+  ];
+}
+
+function renderAudio() {
+  const type = audio.type;
+  const info = AUDIO_TYPES[type];
+  $('audioType').value = type;
+  $('audioDesc').hidden = !info;
+  $('audioDesc').textContent = info?.description ?? '';
+  $('audioWarn').hidden = !info?.warning;
+  $('audioWarn').textContent = info?.warning ?? '';
+  $('audioReset').hidden = !info;
+  const container = $('audioControls');
+  container.replaceChildren();
+  if (info) buildControls(container, audioControls(type), () => saveSettings());
 }
 
 function renderPaw() {
@@ -1395,6 +1473,26 @@ function wire() {
       renderGeneratorHint();
     }
   };
+  $('audioType').replaceChildren(...[['OFF', 'Off'], ...Object.entries(AUDIO_TYPES).map(([id, t]) => [id, t.name])]
+    .map(([value, textContent]) => Object.assign(document.createElement('option'), { value, textContent })));
+  $('audioType').onchange = async e => {
+    try {
+      await audio.setType(e.target.value, settings.audio);
+    } catch (err) {
+      toast(`Audio output failed to start: ${err.message}`);
+      await audio.setType('OFF', settings.audio).catch(() => {});
+    }
+    renderAudio();
+    renderDevice();
+  };
+  $('audioReset').onclick = () => {
+    const key = AUDIO_KEYS[audio.type];
+    Object.assign(settings.audio[key], AUDIO_DEFAULTS[key]);
+    saveSettings();
+    audio.configure(settings.audio);
+    renderAudio();
+  };
+  renderAudio();
   for (const [id, key] of PAW_SELECTS) {
     $(id).replaceChildren(...PAW_ACTIONS.map(([value, label]) => Object.assign(document.createElement('option'), { value, textContent: label })));
     $(id).onchange = e => { settings.paw[key] = e.target.value; saveSettings(); };
@@ -1432,6 +1530,7 @@ function wire() {
   // Leaving the page: silence the box and end the session
   window.addEventListener('pagehide', () => {
     state.session?.close();
+    audio.setType('OFF');
     if (coyote.ready) coyote.disconnect();
   });
 }
