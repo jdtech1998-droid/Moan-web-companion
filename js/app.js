@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
   calibration: { ...CALIBRATION_DEFAULTS },
   tweaks: { ...TWEAK_DEFAULTS },
   paw: { ...PAW_DEFAULTS }, // what each Paw Prints button does
+  devices: { coyote: null, paw: false }, // added in the Devices panel: the Coyote type and whether a Paw Prints is; audio is never saved
   audio: structuredClone(AUDIO_DEFAULTS), // per audio output type; which one plays is never saved (always Off on load)
   showFunscriptMeters: true,
   activity: { changeProbability: 0, excluded: [...DEFAULT_EXCLUDED], options: { ...ACTIVITY_OPTION_DEFAULTS } },
@@ -56,6 +57,7 @@ function loadSettings() {
       calibration: { ...DEFAULT_SETTINGS.calibration, ...(oldCurve != null && { positionalEffectCurve: oldCurve }), ...saved.calibration },
       tweaks: { ...DEFAULT_SETTINGS.tweaks, ...saved.tweaks },
       paw: { ...DEFAULT_SETTINGS.paw, ...saved.paw },
+      devices: { ...DEFAULT_SETTINGS.devices, ...saved.devices },
       audio: Object.fromEntries(Object.entries(AUDIO_DEFAULTS).map(([k, d]) => [k, { ...d, ...saved.audio?.[k] }])),
       activity: { ...DEFAULT_SETTINGS.activity, ...saved.activity, options: { ...DEFAULT_SETTINGS.activity.options, ...saved.activity?.options } } };
   } catch {
@@ -638,26 +640,263 @@ function renderFreqRange() {
   $('freqFill').style.right = `${100 - ((hi - 1) / span) * 100}%`;
 }
 
+// ---- Devices panel (Howl's DevicesPanel and AddDeviceDialog) ----
+
+/** Everything the Add device dialog offers, in Howl's order (its picker lists them alphabetically). */
+const DEVICE_TYPES = {
+  COYOTE3: {
+    kind: 'coyote', name: 'Coyote 3',
+    description: 'A modern pulse based device from DG-LAB, capable of 40 updates per second.\n\nTIP: If your Coyote 3 does not want to connect, pull down both switches on it to activate pairing mode.',
+  },
+  COYOTE2: {
+    kind: 'coyote', name: 'Coyote 2',
+    description: 'A legacy pulse based device from DG-LAB, capable of 10 updates per second. Moan makes it feel a bit less sluggish by interleaving updates between channels.',
+  },
+  ...Object.fromEntries(Object.entries(AUDIO_TYPES).map(([id, t]) => [id, { kind: 'audio', name: t.name, description: t.description, warning: t.warning }])),
+  PAW_PRINTS: {
+    kind: 'paw', name: 'Paw Prints',
+    description: 'A wireless button from DG-LAB. Its buttons can act as an emergency stop, mute, or power up and down.\n\nTIP: To connect, hold a button on the Paw Prints until its lights blink white and blue, then tap its Bluetooth icon.',
+  },
+};
+
+// Howl allows up to 7 outputs; the page drives one Coyote, one audio output and one Paw Prints
+function addedDevices() {
+  return [settings.devices.coyote, audio.type !== 'OFF' ? audio.type : null, settings.devices.paw ? 'PAW_PRINTS' : null].filter(Boolean);
+}
+
+function availableDeviceTypes() {
+  return Object.keys(DEVICE_TYPES).filter(id => {
+    const { kind } = DEVICE_TYPES[id];
+    if (kind === 'coyote') return !settings.devices.coyote;
+    if (kind === 'audio') return audio.type === 'OFF';
+    return !settings.devices.paw;
+  });
+}
+
+// Howl's res/drawable path data
+const DEVICE_ICONS = {
+  bluetooth: 'M440,880v-304L256,760l-56,-56 224,-224 -224,-224 56,-56 184,184v-304h40l228,228 -172,172 172,172L480,880h-40ZM520,384 L596,308 520,234v150ZM520,726 L596,652 520,576v150Z',
+  bluetooth_searching: 'M360,880v-304L176,760l-56,-56 224,-224 -224,-224 56,-56 184,184v-304h40l228,228 -172,172 172,172L400,880h-40ZM440,384 L516,308 440,234v150ZM440,726 L516,652 440,576v150ZM662,574 L570,480 662,388q9,22 14.5,45t5.5,47q0,24 -5.5,47.5T662,574ZM780,688 L730,640q20,-37 31,-77.5t11,-82.5q0,-42 -11,-82.5T730,320l50,-50q29,48 44.5,101T840,480q0,56 -15.5,108.5T780,688Z',
+  bluetooth_connected: 'M440,880v-304L256,760l-56,-56 224,-224 -224,-224 56,-56 184,184v-304h40l228,228 -172,172 172,172L480,880h-40ZM520,384 L596,308 520,234v150ZM520,726 L596,652 520,576v150ZM157.5,522.5Q140,505 140,480t17.5,-42.5Q175,420 200,420t42.5,17.5Q260,455 260,480t-17.5,42.5Q225,540 200,540t-42.5,-17.5ZM717.5,522.5Q700,505 700,480t17.5,-42.5Q735,420 760,420t42.5,17.5Q820,455 820,480t-17.5,42.5Q785,540 760,540t-42.5,-17.5Z',
+  battery: 'M320,880q-17,0 -28.5,-11.5T280,840v-640q0,-17 11.5,-28.5T320,160h80v-80h160v80h80q17,0 28.5,11.5T680,200v640q0,17 -11.5,28.5T640,880L320,880Z',
+  settings: 'm370,880 l-16,-128q-13,-5 -24.5,-12T307,725l-119,50L78,585l103,-78q-1,-7 -1,-13.5v-27q0,-6.5 1,-13.5L78,375l110,-190 119,50q11,-8 23,-15t24,-12l16,-128h220l16,128q13,5 24.5,12t22.5,15l119,-50 110,190 -103,78q1,7 1,13.5v27q0,6.5 -2,13.5l103,78 -110,190 -118,-50q-11,8 -23,15t-24,12L590,880L370,880ZM440,800h79l14,-106q31,-8 57.5,-23.5T639,633l99,41 39,-68 -86,-65q5,-14 7,-29.5t2,-31.5q0,-16 -2,-31.5t-7,-29.5l86,-65 -39,-68 -99,42q-22,-23 -48.5,-38.5T533,266l-13,-106h-79l-14,106q-31,8 -57.5,23.5T321,327l-99,-41 -39,68 86,64q-5,15 -7,30t-2,32q0,16 2,31t7,30l-86,65 39,68 99,-42q22,23 48.5,38.5T427,694l13,106ZM482,620q58,0 99,-41t41,-99q0,-58 -41,-99t-99,-41q-59,0 -99.5,41T342,480q0,58 40.5,99t99.5,41ZM480,480Z',
+  bin: 'M280,840q-33,0 -56.5,-23.5T200,760v-520h-40v-80h200v-40h240v40h200v80h-40v520q0,33 -23.5,56.5T680,840L280,840ZM680,240L280,240v520h400v-520ZM360,680h80v-360h-80v360ZM520,680h80v-360h-80v360ZM280,240v520,-520Z',
+};
+
+function deviceIcon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 960 960');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', DEVICE_ICONS[name]);
+  svg.append(path);
+  return svg;
+}
+
+function iconButton(iconName, label, onclick, cls = '') {
+  const b = document.createElement('button');
+  b.className = `icon-btn ${cls}`.trim();
+  b.setAttribute('aria-label', label);
+  b.title = label;
+  b.append(deviceIcon(iconName));
+  b.onclick = onclick;
+  return b;
+}
+
+/** The battery reading and connect / disconnect icon on a Bluetooth device's row, as Howl's BluetoothStatusControls. */
+function bluetoothControls(dev, onToggle) {
+  const out = [];
+  const status = dev.ready ? 'Connected' : ['Scanning', 'Connecting'].includes(dev.statusText) ? dev.statusText : 'Disconnected';
+  if (status === 'Connected' && dev.battery != null) {
+    const battery = document.createElement('span');
+    battery.className = 'device-battery';
+    battery.append(deviceIcon('battery'), `${dev.battery}%`);
+    out.push(battery);
+  }
+  const [iconName, label, cls] = {
+    Disconnected: ['bluetooth', 'Disconnected. Tap to connect.', 'bt-off'],
+    Scanning: ['bluetooth_searching', 'Scanning...', ''],
+    Connecting: ['bluetooth_connected', 'Connecting...', ''],
+    Connected: ['bluetooth_connected', 'Connected. Tap to disconnect.', 'bt-on'],
+  }[status];
+  const supported = bluetoothSupported();
+  const button = iconButton(iconName, supported ? label : 'No Bluetooth in this browser. Use Chrome or Edge.', onToggle, cls);
+  button.disabled = !supported || dev.busy === true;
+  out.push(button);
+  return out;
+}
+
+// The Settings card each device's gear opens (Coyote 2 has no settings of its own)
+const SETTINGS_CARDS = { COYOTE3: 'card-coyote', PAW_PRINTS: 'card-paw' };
+
 function renderDevice() {
-  const label = $('connectLabel');
-  const button = $('connectBtn');
-  if (!bluetoothSupported()) {
-    $('deviceStatus').textContent = 'No Bluetooth in this browser';
-    button.disabled = true;
-    renderPaw();
+  const rows = addedDevices().map(id => {
+    const type = DEVICE_TYPES[id];
+    const row = document.createElement('div');
+    row.className = 'device-row';
+    const name = document.createElement('span');
+    name.className = 'device-name';
+    name.textContent = type.name;
+    row.append(name);
+    if (type.kind === 'coyote') row.append(...bluetoothControls(coyote, () => toggleCoyote(id)));
+    if (type.kind === 'paw') row.append(...bluetoothControls(paw, togglePaw));
+    const card = type.kind === 'audio' ? 'card-audio' : SETTINGS_CARDS[id];
+    if (card) row.append(iconButton('settings', 'Device settings', () => showSettingsCard(card)));
+    row.append(iconButton('bin', 'Remove device', () => confirmRemoveDevice(id)));
+    return row;
+  });
+  $('deviceRows').replaceChildren(...rows);
+  // Howl shows this until an output is added; a Paw Prints alone can't play anything
+  $('devicesEmpty').hidden = !!settings.devices.coyote || audio.type !== 'OFF';
+  renderPaw();
+}
+
+function showSettingsCard(id) {
+  selectTab('settings');
+  $(id).scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+async function toggleCoyote(type) {
+  if (coyote.ready) {
+    await coyote.disconnect();
     return;
   }
-  let status = coyote.ready ? `${coyote.model}${coyote.battery != null ? ` · ${coyote.battery}%` : ''}` : (coyote.statusText ?? 'Disconnected');
-  if (audio.active) status = `${coyote.ready ? status : 'No Coyote'} · Audio`;
-  if (paw.ready) {
-    // "Disconnected · Paw" would read as the Paw being disconnected
-    if (status === 'Disconnected') status = 'No Coyote';
-    status += ` · Paw${paw.battery != null ? ` ${paw.battery}%` : ''}`;
+  if (coyote.busy) return;
+  const isCoyote2 = type === 'COYOTE2';
+  coyote.busy = true;
+  coyote.statusText = 'Scanning';
+  renderDevice();
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [isCoyote2 ? { name: COYOTE2_NAME } : { namePrefix: COYOTE3_NAME_PREFIX }],
+      optionalServices: isCoyote2 ? COYOTE2_SERVICES : COYOTE3_SERVICES,
+    });
+    coyote = isCoyote2 ? new Coyote2() : new Coyote3();
+    attachCoyote();
+    coyote.busy = true;
+    await coyote.connect(device);
+    syncCoyoteLimits();
+  } catch (e) {
+    coyote.statusText = 'Disconnected';
+    // Closing the device picker isn't an error worth showing
+    if (e.name !== 'NotFoundError') toast(e.message);
+    coyote.device?.gatt?.disconnect();
+    coyote.handleDisconnect();
+  } finally {
+    coyote.busy = false;
+    renderDevice();
+    renderGeneratorHint();
   }
-  $('deviceStatus').textContent = status;
-  label.textContent = coyote.ready ? 'Disconnect' : 'Connect';
-  button.disabled = coyote.busy === true;
-  renderPaw();
+}
+
+async function togglePaw() {
+  if (paw.ready) {
+    paw.disconnect();
+    return;
+  }
+  if (paw.busy) return;
+  paw.busy = true;
+  renderDevice();
+  try {
+    await paw.connect();
+  } catch (e) {
+    paw.statusText = 'Disconnected';
+    if (e.name !== 'NotFoundError') toast(e.message);
+    paw.expectDisconnect = true;
+    paw.device?.gatt?.disconnect();
+    paw.handleDisconnect();
+  } finally {
+    paw.busy = false;
+    renderDevice();
+  }
+}
+
+async function setAudioType(type) {
+  try {
+    await audio.setType(type, settings.audio);
+  } catch (err) {
+    toast(`Audio output failed to start: ${err.message}`);
+    await audio.setType('OFF', settings.audio).catch(() => {});
+  }
+  renderAudio();
+  renderDevice();
+}
+
+/** Adds a device from the dialog. Bluetooth ones start connecting at once, while the click still counts as a user gesture. */
+function addDevice(id) {
+  const { kind } = DEVICE_TYPES[id];
+  if (kind === 'audio') {
+    setAudioType(id);
+    return;
+  }
+  if (kind === 'coyote') settings.devices.coyote = id;
+  else settings.devices.paw = true;
+  saveSettings();
+  renderDevice();
+  if (!bluetoothSupported()) toast('No Bluetooth in this browser. Use Chrome or Edge.');
+  else if (kind === 'coyote') toggleCoyote(id);
+  else togglePaw();
+}
+
+async function removeDevice(id) {
+  const { kind } = DEVICE_TYPES[id];
+  if (kind === 'audio') {
+    await setAudioType('OFF');
+    return;
+  }
+  if (kind === 'coyote') {
+    settings.devices.coyote = null;
+    if (coyote.ready) await coyote.disconnect();
+  } else {
+    settings.devices.paw = false;
+    if (paw.ready) paw.disconnect();
+  }
+  saveSettings();
+  renderDevice();
+  renderGeneratorHint();
+}
+
+function confirmRemoveDevice(id) {
+  const dialog = $('confirmDialog');
+  $('confirmText').textContent = `Remove the "${DEVICE_TYPES[id].name}" device?`;
+  $('confirmYes').onclick = () => { dialog.close(); removeDevice(id); };
+  $('confirmNo').onclick = () => dialog.close();
+  dialog.showModal();
+}
+
+let addDeviceChoice = null;
+
+function openAddDevice() {
+  const available = availableDeviceTypes();
+  addDeviceChoice = available[0] ?? null;
+  $('addDeviceBody').hidden = !addDeviceChoice;
+  $('addDeviceFull').hidden = !!addDeviceChoice;
+  closeDeviceMenu();
+  const sorted = [...available].sort((a, b) => DEVICE_TYPES[a].name.localeCompare(DEVICE_TYPES[b].name));
+  $('deviceMenu').replaceChildren(...sorted.map(id => {
+    const item = document.createElement('button');
+    item.setAttribute('role', 'option');
+    item.textContent = DEVICE_TYPES[id].name;
+    item.onclick = () => { addDeviceChoice = id; closeDeviceMenu(); renderAddDeviceChoice(); };
+    return item;
+  }));
+  renderAddDeviceChoice();
+  $('addDeviceDialog').showModal();
+}
+
+function renderAddDeviceChoice() {
+  const type = DEVICE_TYPES[addDeviceChoice];
+  if (!type) return;
+  $('deviceChoice').textContent = type.name;
+  $('deviceDesc').textContent = type.description;
+  $('deviceWarn').textContent = type.warning ?? '';
+  $('deviceWarn').hidden = !type.warning;
+}
+
+function closeDeviceMenu() {
+  $('deviceMenu').hidden = true;
+  $('deviceChoice').setAttribute('aria-expanded', 'false');
 }
 
 /** Hooks the page up to the current Coyote driver (a new one is made for each connection). */
@@ -732,7 +971,7 @@ function audioControls(type) {
 function renderAudio() {
   const type = audio.type;
   const info = AUDIO_TYPES[type];
-  $('audioType').value = type;
+  $('audioNone').hidden = !!info;
   $('audioDesc').hidden = !info;
   $('audioDesc').textContent = info?.description ?? '';
   $('audioWarn').hidden = !info?.warning;
@@ -744,11 +983,6 @@ function renderAudio() {
 }
 
 function renderPaw() {
-  const supported = bluetoothSupported();
-  $('pawStatus').textContent = !supported ? 'No Bluetooth in this browser'
-    : paw.ready ? `Connected${paw.battery != null ? ` · ${paw.battery}%` : ''}` : (paw.statusText ?? 'Disconnected');
-  $('pawConnect').textContent = paw.ready ? 'Disconnect' : 'Connect';
-  $('pawConnect').disabled = !supported || paw.busy === true;
   for (const [id, key] of PAW_SELECTS) $(id).value = settings.paw[key];
 }
 
@@ -1442,48 +1676,27 @@ function wire() {
     renderTweaks();
   };
 
-  $('connectBtn').onclick = async () => {
-    if (coyote.ready) {
-      await coyote.disconnect();
-      return;
-    }
-    coyote.busy = true;
-    coyote.statusText = 'Scanning';
-    renderDevice();
-    try {
-      // One picker for both boxes; the name the user picks decides which driver talks to it
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ namePrefix: COYOTE3_NAME_PREFIX }, { name: COYOTE2_NAME }],
-        optionalServices: [...COYOTE3_SERVICES, ...COYOTE2_SERVICES],
-      });
-      coyote = device.name === COYOTE2_NAME ? new Coyote2() : new Coyote3();
-      attachCoyote();
-      coyote.busy = true;
-      await coyote.connect(device);
-      syncCoyoteLimits();
-    } catch (e) {
-      coyote.statusText = 'Disconnected';
-      // Closing the device picker isn't an error worth showing
-      if (e.name !== 'NotFoundError') toast(e.message);
-      coyote.device?.gatt?.disconnect();
-      coyote.handleDisconnect();
-    } finally {
-      coyote.busy = false;
-      renderDevice();
-      renderGeneratorHint();
-    }
+  $('addDevice').onclick = openAddDevice;
+  $('deviceChoice').onclick = () => {
+    const menu = $('deviceMenu');
+    menu.hidden = !menu.hidden;
+    $('deviceChoice').setAttribute('aria-expanded', String(!menu.hidden));
+    if (!menu.hidden) menu.querySelector('button')?.focus();
   };
-  $('audioType').replaceChildren(...[['OFF', 'Off'], ...Object.entries(AUDIO_TYPES).map(([id, t]) => [id, t.name])]
-    .map(([value, textContent]) => Object.assign(document.createElement('option'), { value, textContent })));
-  $('audioType').onchange = async e => {
-    try {
-      await audio.setType(e.target.value, settings.audio);
-    } catch (err) {
-      toast(`Audio output failed to start: ${err.message}`);
-      await audio.setType('OFF', settings.audio).catch(() => {});
+  $('addDeviceDialog').addEventListener('click', e => { if (!e.target.closest('.picker')) closeDeviceMenu(); });
+  $('addDeviceDialog').addEventListener('keydown', e => {
+    // Escape closes an open menu first, then the dialog
+    if (e.key === 'Escape' && !$('deviceMenu').hidden) {
+      e.preventDefault();
+      closeDeviceMenu();
+      $('deviceChoice').focus();
     }
-    renderAudio();
-    renderDevice();
+  });
+  $('addDeviceCancel').onclick = () => $('addDeviceDialog').close();
+  $('addDeviceClose').onclick = () => $('addDeviceDialog').close();
+  $('addDeviceOk').onclick = () => {
+    $('addDeviceDialog').close();
+    if (addDeviceChoice) addDevice(addDeviceChoice);
   };
   $('audioReset').onclick = () => {
     const key = AUDIO_KEYS[audio.type];
@@ -1497,26 +1710,6 @@ function wire() {
     $(id).replaceChildren(...PAW_ACTIONS.map(([value, label]) => Object.assign(document.createElement('option'), { value, textContent: label })));
     $(id).onchange = e => { settings.paw[key] = e.target.value; saveSettings(); };
   }
-  $('pawConnect').onclick = async () => {
-    if (paw.ready) {
-      paw.disconnect();
-      return;
-    }
-    paw.busy = true;
-    renderPaw();
-    try {
-      await paw.connect();
-    } catch (e) {
-      paw.statusText = 'Disconnected';
-      if (e.name !== 'NotFoundError') toast(e.message);
-      paw.expectDisconnect = true;
-      paw.device?.gatt?.disconnect();
-      paw.handleDisconnect();
-    } finally {
-      paw.busy = false;
-      renderDevice();
-    }
-  };
   paw.onStatus = s => { paw.statusText = s; renderDevice(); };
   paw.onBattery = () => renderDevice();
   paw.onPressed = pawPressed;

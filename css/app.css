@@ -22,7 +22,7 @@ a { color: var(--primary); }
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: env(safe-area-inset-top, 0px) 16px calc(96px + env(safe-area-inset-bottom, 0px));
+  padding: env(safe-area-inset-top, 0px) 16px calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 .icon { width: 24px; height: 24px; fill: currentColor; flex: none; }
@@ -355,24 +355,51 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .setting { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .setting input { width: 90px; padding: 8px 10px; text-align: right; }
 
-/* ---- Device bar ---- */
-.device-bar {
-  position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  width: min(560px, calc(100% - 16px));
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 10px 10px 16px; border-radius: 28px;
-  background: var(--inverse-surface); color: var(--inverse-on-surface);
-  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+/* ---- Devices panel (Howl's DevicesPanel) and its dialogs ---- */
+.devices {
+  margin-top: 12px; padding: 4px 8px 4px 16px; border: 2px solid var(--outline); border-radius: 12px;
+  background: var(--surface-container-low); display: flex; flex-direction: column;
 }
-.wolf { width: 34px; height: 34px; fill: var(--inverse-on-surface); flex: none; }
-.device-status { flex: 1; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.device-bar .btn-tonal { min-height: 48px; background: var(--primary-container); color: var(--on-primary-container); }
-@media (prefers-color-scheme: dark) { .device-bar .btn-tonal { background: #CBB3FF; color: #201047; } }
+.devices-head, .device-row { display: flex; align-items: center; gap: 4px; min-height: 44px; }
+.devices-title { flex: 1; font-size: 22px; }
+.device-name { flex: 1; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-battery { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; color: var(--on-surface-variant); }
+.device-battery .icon { width: 20px; height: 20px; }
+#devicesEmpty { padding: 8px 0; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--on-surface-variant); flex: none;
+}
+.icon-btn:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+.icon-btn:disabled { opacity: .6; cursor: default; }
+.icon-btn.bt-off { color: var(--error); }
+.icon-btn.bt-on { color: #4CAF50; }
+
+.dialog {
+  width: min(420px, calc(100% - 32px)); padding: 16px; border: 2px solid var(--outline); border-radius: 28px;
+  overflow: visible; /* the picker menu hangs over the dialog edge, like a Compose DropdownMenu */
+  background: var(--surface-container-high); color: var(--on-surface);
+}
+.dialog::backdrop { background: rgba(0, 0, 0, .5); }
+.dialog-title { margin: 0 0 16px; font-size: 24px; font-weight: 400; text-align: center; }
+.dialog p { margin: 0 0 16px; }
+.dialog .pre { white-space: pre-line; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.picker { position: relative; display: flex; justify-content: center; margin-bottom: 16px; }
+.picker-btn {
+  border: 1px solid var(--outline); border-radius: 999px; padding: 12px 24px;
+  font-size: 16px; font-weight: 500; color: var(--primary);
+}
+.picker-menu {
+  position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%); z-index: 1; min-width: 200px; padding: 8px 0;
+  border-radius: 4px; background: var(--surface-container); box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+}
+.picker-menu button { display: block; width: 100%; text-align: left; padding: 12px 16px; font-size: 14px; }
+.picker-menu button:hover, .picker-menu button:focus-visible { background: var(--surface-container-highest); outline: none; }
 
 /* Rider feedback over the other tabs */
 .feed-popups {
-  position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 20;
+  position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); z-index: 20;
   width: min(480px, calc(100% - 32px)); max-height: 60vh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 8px;
 }
@@ -391,7 +418,7 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 @keyframes drop-in { from { transform: translateY(12px); opacity: 0; } }
 
 .toast {
-  position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   background: var(--inverse-surface); color: var(--inverse-on-surface);
   padding: 10px 18px; border-radius: 10px; font-size: 14px; z-index: 10; max-width: calc(100% - 32px);
 }
@@ -432,9 +459,7 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
   #tab-remote { grid-area: remote; padding-top: 20px; }
   /* E-STOP stays in view however long the feedback feed gets */
   #tab-remote .estop { position: sticky; bottom: 0; margin-top: auto; }
-  .device-bar { grid-area: dev; position: static; transform: none; width: auto; margin-bottom: 20px; }
-  /* Above the device bar at the bottom of the center column */
-  .feed-popups, .toast { bottom: 110px; }
+  .devices { grid-area: dev; margin: 0 0 20px; max-height: 40vh; overflow-y: auto; }
 }
 
 /* The Generator cards stack when their column is narrow (the left column on a smaller wide screen) */

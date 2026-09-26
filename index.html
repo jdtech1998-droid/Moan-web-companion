@@ -53,6 +53,18 @@
       </div>
     </header>
 
+    <!-- Devices (Howl's DevicesPanel) -->
+    <section class="devices" aria-label="Devices">
+      <div class="devices-head">
+        <span class="devices-title">Devices</span>
+        <button class="icon-btn" id="addDevice" aria-label="Add device" title="Add device">
+          <svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="M440,520L200,520v-80h240v-240h80v240h240v80L520,520v240h-80v-240Z"/></svg>
+        </button>
+      </div>
+      <div id="deviceRows"></div>
+      <p class="muted small center" id="devicesEmpty">Add your device to get started.</p>
+    </section>
+
     <nav class="tabs" role="tablist">
       <button role="tab" class="tab" data-tab="player" aria-selected="false">
         <svg viewBox="0 0 960 960" class="icon" aria-hidden="true"><path d="m380,660 l280,-180 -280,-180v360ZM160,800q-33,0 -56.5,-23.5T80,720v-480q0,-33 23.5,-56.5T160,160h640q33,0 56.5,23.5T880,240v480q0,33 -23.5,56.5T800,800L160,800ZM160,720h640v-480L160,240v480ZM160,720v-480,480Z"/></svg>
@@ -94,7 +106,7 @@
         <!-- Rider -->
         <div id="riderPanel" hidden>
           <div class="card" id="riderIdle">
-            <p class="muted">Connect your Coyote 3 below first, then create a code and send it to your Driver. Power and MAX start at 0 every session.</p>
+            <p class="muted">Add and connect your Coyote under Devices first, then create a code and send it to your Driver. Power and MAX start at 0 every session.</p>
             <button class="btn-filled block" id="riderStart">Generate Session Code</button>
           </div>
           <div id="riderActive" hidden>
@@ -360,28 +372,24 @@
           <label class="switch-row"><span>Invert frequencies B</span><input type="checkbox" class="switch" id="twInvertB"></label>
           <button class="btn-text" id="twReset">Reset tweaks</button>
         </div>
-        <div class="card">
+        <div class="card" id="card-paw">
           <div class="card-title">Paw Prints</div>
-          <p class="muted small">A wireless button from DG-LAB. Its buttons can act as an emergency stop, mute, or power up and down. To connect, hold a button on the Paw Prints until its lights blink white and blue, then press Connect.</p>
-          <div class="setting">
-            <span id="pawStatus">Disconnected</span>
-            <button class="btn-tonal small" id="pawConnect">Connect</button>
-          </div>
+          <p class="muted small">A wireless button from DG-LAB. Its buttons can act as an emergency stop, mute, or power up and down. To connect, hold a button on the Paw Prints until its lights blink white and blue, then tap its Bluetooth icon under Devices.</p>
           <p class="muted small">Choose what each button on the Paw Prints does. Test your emergency stop before you rely on it.</p>
           <div class="setting"><span>Top button</span><select id="pawTop"></select></div>
           <div class="setting"><span>Left button</span><select id="pawLeft"></select></div>
           <div class="setting"><span>Right button</span><select id="pawRight"></select></div>
         </div>
-        <div class="card">
+        <div class="card" id="card-audio">
           <div class="card-title">Audio output</div>
           <p class="muted small">Plays pulses as sound for stereostim and other audio-driven boxes: channel A on the left, B on the right, through this device's current sound output. Turn the volume down before you start, then raise it slowly. The page's power levels scale the sound unless "Always full volume" is on. It is always off when the page opens.</p>
-          <div class="setting"><span>Output</span><select id="audioType"></select></div>
+          <p class="muted small" id="audioNone">Add an audio output under Devices to change its settings.</p>
           <p class="muted small" id="audioDesc" hidden></p>
           <p class="muted small warning" id="audioWarn" hidden></p>
           <div class="controls" id="audioControls"></div>
           <button class="btn-text" id="audioReset" hidden>Reset audio settings</button>
         </div>
-        <div class="card">
+        <div class="card" id="card-coyote">
           <div class="card-title">Coyote 3</div>
           <div class="setting"><span>Frequency balance A</span><input type="number" min="0" max="255" id="setFbA"></div>
           <div class="setting"><span>Frequency balance B</span><input type="number" min="0" max="255" id="setFbB"></div>
@@ -402,16 +410,37 @@
       </section>
     </main>
 
-    <!-- Device bar -->
-    <footer class="device-bar">
-      <svg viewBox="0 0 24 24" class="wolf" aria-hidden="true"><path d="M4 2l4 5h8l4-5v9c0 5-4 11-8 11S4 16 4 11z"/><circle cx="9" cy="12" r="1.3" fill="var(--inverse-surface)"/><circle cx="15" cy="12" r="1.3" fill="var(--inverse-surface)"/><path d="M10.5 16h3l-1.5 1.5z" fill="var(--inverse-surface)"/></svg>
-      <span class="device-status" id="deviceStatus">Disconnected</span>
-      <button class="btn-tonal pill" id="connectBtn">
-        <svg viewBox="0 0 24 24" class="icon"><path d="M7 7l10 10-5 5V2l5 5L7 17" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>
-        <span id="connectLabel">Connect</span>
-      </button>
-    </footer>
   </div>
+
+  <dialog class="dialog" id="addDeviceDialog" aria-labelledby="addDeviceTitle">
+    <h2 class="dialog-title" id="addDeviceTitle">Add device</h2>
+    <div id="addDeviceBody">
+      <p class="small">Choose the device you'd like to add.</p>
+      <div class="picker">
+        <button class="picker-btn" id="deviceChoice" aria-haspopup="listbox" aria-expanded="false"></button>
+        <div class="picker-menu" id="deviceMenu" role="listbox" hidden></div>
+      </div>
+      <p class="small pre" id="deviceDesc"></p>
+      <p class="small warning" id="deviceWarn" hidden></p>
+      <div class="dialog-actions">
+        <button class="btn-text" id="addDeviceCancel">Cancel</button>
+        <button class="btn-filled" id="addDeviceOk">Add</button>
+      </div>
+    </div>
+    <div id="addDeviceFull" hidden>
+      <p class="small pre">Thought you'd keep adding output devices to see what would happen eh?
+
+Well you found out. It's this.</p>
+      <div class="dialog-actions"><button class="btn-filled" id="addDeviceClose">Close</button></div>
+    </div>
+  </dialog>
+  <dialog class="dialog" id="confirmDialog">
+    <p class="small" id="confirmText"></p>
+    <div class="dialog-actions">
+      <button class="btn-text" id="confirmNo">Cancel</button>
+      <button class="btn-filled" id="confirmYes">Confirm</button>
+    </div>
+  </dialog>
 
   <div class="feed-popups" id="feedPopups" aria-live="assertive"></div>
   <div class="toast" id="toast" hidden></div>
