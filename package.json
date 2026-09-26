@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/protocol.test.js test/stream.test.js test/manual.test.js test/player.test.js test/activity.test.js",
+    "test": "node --test test/protocol.test.js test/stream.test.js test/manual.test.js test/player.test.js test/activity.test.js test/calibration.test.js",
     "serve": "node serve.js"
   }
 }

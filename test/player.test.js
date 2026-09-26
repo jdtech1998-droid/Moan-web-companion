@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FunscriptAxis, FunscriptSource, BadFileError, FUNSCRIPT_DEFAULTS, positionalEffect } from '../js/funscript.js';
+import { FunscriptAxis, FunscriptSource, BadFileError, positionalEffect } from '../js/funscript.js';
 import { readHWL, writeHWL, HwlSource, Player, Recorder } from '../js/player.js';
+import { CALIBRATION_DEFAULTS } from '../js/calibration.js';
 
 const near = (actual, expected, eps = 1e-6) => assert.ok(Math.abs(actual - expected) < eps, `${actual} != ${expected}`);
 
@@ -61,7 +62,7 @@ test('invalid funscripts are rejected', () => {
 });
 
 test('the positional effect pans power from A at the bottom to B at the top', () => {
-  const [a0, b0] = positionalEffect(1, 0, 1, FUNSCRIPT_DEFAULTS.positionalEffectCurve);
+  const [a0, b0] = positionalEffect(1, 0, 1, CALIBRATION_DEFAULTS.positionalEffectCurve);
   near(a0, 1); near(b0, 0);
   const [a1, b1] = positionalEffect(1, 1, 1, 0.5);
   near(a1, 0); near(b1, 1);

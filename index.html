@@ -303,6 +303,31 @@
           <button class="btn-text" id="fsReset">Reset funscript settings</button>
         </div>
         <div class="card">
+          <div class="card-title">Calibration</div>
+          <p class="muted small">Applied to your Coyote only. Use the calibration activities on the Activity tab to set these.</p>
+          <label class="slider-setting">
+            <span>Power balance</span><output id="calBalanceOut"></output>
+            <input type="range" id="calBalance" min="0" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Frequency balance A</span><output id="calFreqAOut"></output>
+            <input type="range" id="calFreqA" min="0" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Frequency balance B</span><output id="calFreqBOut"></output>
+            <input type="range" id="calFreqB" min="0" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Amplitude scaling</span><output id="calScalingOut"></output>
+            <input type="range" id="calScaling" min="0" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Positional effect curve</span><output id="calCurveOut"></output>
+            <input type="range" id="calCurve" min="0.1" max="1" step="0.01">
+          </label>
+          <button class="btn-text" id="calReset">Reset calibration</button>
+        </div>
+        <div class="card">
           <div class="card-title">Coyote 3</div>
           <div class="setting"><span>Frequency balance A</span><input type="number" min="0" max="255" id="setFbA"></div>
           <div class="setting"><span>Frequency balance B</span><input type="number" min="0" max="255" id="setFbB"></div>

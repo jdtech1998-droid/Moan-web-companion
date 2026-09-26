@@ -82,11 +82,12 @@ export class HwlSource {
  * Opens a .funscript or .hwl file.
  * @param {File} file
  * @param {object} funscriptOptions
+ * @param {() => number} positionalCurve
  */
-export async function openFile(file, funscriptOptions) {
+export async function openFile(file, funscriptOptions, positionalCurve) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (file.size > MAX_FILE_BYTES) throw new BadFileError(`File is too large (${Math.round(file.size / 1048576)}MB)`);
-  if (ext === 'funscript') return new FunscriptSource(await file.text(), file.name, funscriptOptions);
+  if (ext === 'funscript') return new FunscriptSource(await file.text(), file.name, funscriptOptions, positionalCurve);
   if (ext === 'hwl') return new HwlSource(readHWL(await file.arrayBuffer()), file.name);
   throw new BadFileError(`Unsupported file type: "${file.name}" (expected .hwl or .funscript)`);
 }

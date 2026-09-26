@@ -327,6 +327,7 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .smoother-control { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 0.45fr); gap: 16px; }
 .smoother-control.target-only { grid-template-columns: minmax(0, 1fr); }
 .controls .disabled { opacity: .5; }
+.controls-heading { margin: 0; font-size: 20px; font-weight: 500; }
 .button-row { display: flex; gap: 8px; }
 .button-row button { flex: 1 1 0; }
 

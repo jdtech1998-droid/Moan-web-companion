@@ -13,7 +13,6 @@ export const FUNSCRIPT_DEFAULTS = {
   directionalFreqShift: 0.15,
   flipDirectionalFreqShift: false,
   normaliseAxes: true,
-  positionalEffectCurve: 0.5, // Howl's calibration curve: 0.5 = constant power panning
 };
 
 const MAX_SPEED = 5.0; // approximate maximum speed of a stroker device
@@ -151,9 +150,11 @@ export class FunscriptSource {
    * @param {string} text the .funscript file's JSON
    * @param {string} name
    * @param {typeof FUNSCRIPT_DEFAULTS} options
+   * @param {() => number} positionalCurve the calibrated positional effect curve (0.5 = constant power)
    */
-  constructor(text, name, options = FUNSCRIPT_DEFAULTS) {
+  constructor(text, name, options = FUNSCRIPT_DEFAULTS, positionalCurve = () => 0.5) {
     this.options = options;
+    this.positionalCurve = positionalCurve;
     this.name = name;
     this.loop = false;
     let script;
@@ -262,7 +263,7 @@ export class FunscriptSource {
     const raw = this.totalAmplitude(time);
     const amplitude = clamp01(raw ** Math.max(1 - o.volume, 0.001));
     const position = this.axes.get('L0').positionAt(time);
-    const [ampA, ampB] = positionalEffect(amplitude, position, o.positionalEffectStrength, o.positionalEffectCurve);
+    const [ampA, ampB] = positionalEffect(amplitude, position, o.positionalEffectStrength, this.positionalCurve());
     const [freqA, freqB] = this.spatialFrequencies(time, position, raw);
     return { ampA, ampB, freqA, freqB };
   }

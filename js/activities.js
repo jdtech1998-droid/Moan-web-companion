@@ -5,6 +5,7 @@
 //   { type: 'select', label, options: [[value, label]], get, set, disabled? }
 //   { type: 'smoother', label, smoother, targetRange, rateRange?, step?, disabled? }  (no rateRange: no rate slider)
 //   { type: 'buttons', buttons: [[label, onClick]], disabled? }
+//   { type: 'text', text, heading? }
 // `disabled` is a function (checked on every refresh); `persist` saves the page's settings after a change.
 
 import {
@@ -457,6 +458,99 @@ export class OppositesActivity extends Activity {
 
   getPulse() {
     return { ampA: this.ampA.value, ampB: 1 - this.ampA.value, freqA: this.freqA.value, freqB: 1 - this.freqA.value };
+  }
+}
+
+// ---- Calibration ----------------------------------------------------------------------------------
+// Howl's texts point at the output's calibration sliders in another screen. Here the sliders sit under the text
+// instead (the page shows one tab at a time on a phone); they edit the same values as Settings > Calibration.
+
+/** A slider for one calibration value, saved with the page's settings. */
+const calibrationSlider = (ctx, label, key, min = 0) => ({
+  type: 'slider', label, min, max: 1, step: 0.01, persist: true,
+  get: () => ctx.calibration[key], set: v => { ctx.calibration[key] = v; },
+});
+
+export class PowerCalibrationActivity extends Activity {
+  initialise() {
+    this.channelA = true;
+    const swap = new Timer(0.5, true, () => { this.channelA = !this.channelA; });
+    this.manager.register(swap);
+    swap.start();
+  }
+
+  getPulse() {
+    const power = 0.9;
+    return { ampA: this.channelA ? power : 0, ampB: this.channelA ? 0 : power, freqA: 0.5, freqB: 0.5 };
+  }
+
+  permanentControls() {
+    return [
+      { type: 'text', heading: true, text: 'Power calibration' },
+      { type: 'text', text: 'Use the main power controls to set both channels to the same numbered power level (e.g. both 20). Then adjust the power balance slider below until the sensation you feel on both channels is equal.' },
+      calibrationSlider(this.ctx, 'Power balance', 'amplitudeBalance'),
+    ];
+  }
+}
+
+const FREQ_TEST_PATTERNS = [['SWAP_A', 'Swap A'], ['SWAP_B', 'Swap B'], ['SWEEP_A', 'Sweep A'], ['SWEEP_B', 'Sweep B']];
+
+export class FrequencyCalibrationActivity extends Activity {
+  initialise() {
+    this.waveManager = new WaveManager();
+    this.pattern = 'SWAP_A';
+    this.swapState = false;
+    const swap = new Timer(0.8, true, () => { this.swapState = !this.swapState; });
+    this.waveManager.addWave(wave('calibration', [[0, 0, 0], [0.5, 1, 0]]));
+    this.waveManager.setSpeed(0.2);
+    this.manager.register(swap);
+    this.manager.register(this.waveManager);
+    swap.start();
+  }
+
+  getPulse() {
+    const power = 0.9;
+    const sweep = this.pattern.startsWith('SWEEP');
+    const freq = sweep ? this.waveManager.position('calibration') : this.swapState ? 1 : 0;
+    const onA = this.pattern.endsWith('A');
+    return { ampA: onA ? power : 0, ampB: onA ? 0 : power, freqA: freq, freqB: freq };
+  }
+
+  permanentControls() {
+    return [
+      { type: 'text', heading: true, text: 'Frequency calibration' },
+      { type: 'text', text: "Adjust the frequency balance sliders below to change the relative power of high and low frequencies on each channel. For example, you might wish to make high and low frequencies feel equally powerful. But this is personal preference." },
+      { type: 'text', text: 'This adjustment is frequency range dependent. Using a different frequency range to what you calibrated with will cause the balance to shift.' },
+      calibrationSlider(this.ctx, 'Frequency balance A', 'frequencyBalanceA'),
+      calibrationSlider(this.ctx, 'Frequency balance B', 'frequencyBalanceB'),
+    ];
+  }
+
+  temporaryControls() {
+    return [{ type: 'select', label: 'Test pattern', options: FREQ_TEST_PATTERNS, get: () => this.pattern, set: v => { this.pattern = v; } }];
+  }
+}
+
+export class PositionalCalibrationActivity extends Activity {
+  initialise() {
+    this.waveManager = new WaveManager();
+    this.waveManager.addWave(wave('calibration', [[0, 0, 0], [0.5, 1, 0]]));
+    this.waveManager.setSpeed(0.2);
+    this.manager.register(this.waveManager);
+  }
+
+  getPulse() {
+    const [ampA, ampB] = this.positional(0.9, this.waveManager.position('calibration'));
+    return { ampA, ampB, freqA: 0.5, freqB: 0.5 };
+  }
+
+  permanentControls() {
+    return [
+      { type: 'text', heading: true, text: 'Positional calibration' },
+      { type: 'text', text: 'Important: Both channels must have equal feeling power levels (do the power calibration first).' },
+      { type: 'text', text: 'Positional effects are used whenever you play funscript files, and in several activities. Adjust the slider until you feel the slow strokes evenly throughout. If the top and bottom feel stronger than the middle, reduce the slider. If the middle feels stronger, increase the slider.' },
+      calibrationSlider(this.ctx, 'Positional effect curve', 'positionalEffectCurve', 0.1),
+    ];
   }
 }
 
@@ -976,7 +1070,9 @@ export const ACTIVITY_TYPES = [
   { id: 'CHAOS', name: 'Chaos', icon: 'chaos', create: ctx => new ChaosActivity(ctx) },
   { id: 'HJ', name: 'Luxury HJ', icon: 'hand', create: ctx => new LuxuryHJActivity(ctx) },
   { id: 'OPPOSITES', name: 'Opposites', icon: 'yin_yang', create: ctx => new OppositesActivity(ctx) },
-  // Howl lists the three calibration activities here
+  { id: 'CALIBRATE_POWER', name: 'Calibrate power', icon: 'plug', create: ctx => new PowerCalibrationActivity(ctx) },
+  { id: 'CALIBRATE_FREQ', name: 'Calibrate frequency', icon: 'calibration', create: ctx => new FrequencyCalibrationActivity(ctx) },
+  { id: 'CALIBRATE_POSITION', name: 'Calibrate position', icon: 'swapvert', create: ctx => new PositionalCalibrationActivity(ctx) },
   { id: 'BJ', name: 'BJ Megamix', icon: 'lips', create: ctx => new BJActivity(ctx) },
   { id: 'FASTSLOW', name: 'Fast/slow', icon: 'speed', create: ctx => new FastSlowActivity(ctx) },
   { id: 'SIMPLEX', name: 'Simplex', icon: 'wave_triangle', create: ctx => new SimplexActivity(ctx) },
@@ -986,7 +1082,7 @@ export const ACTIVITY_TYPES = [
   { id: 'SINETIME', name: 'Sine time', icon: 'wave', create: ctx => new SineTimeActivity(ctx) },
 ];
 
-/** Excluded from random select by default, as in Howl (the calibration activities, once ported). */
+/** Excluded from random select by default, as in Howl: the calibration activities. */
 export const DEFAULT_EXCLUDED = ['CALIBRATE_POWER', 'CALIBRATE_FREQ', 'CALIBRATE_POSITION'];
 
 /**

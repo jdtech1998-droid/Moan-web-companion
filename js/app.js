@@ -12,6 +12,7 @@ import { Touchpad } from './touchpad.js';
 import { FUNSCRIPT_DEFAULTS, AXIS_NAMES, isRotationAxis } from './funscript.js';
 import { ActivityHost, ACTIVITY_TYPES, ACTIVITY_OPTION_DEFAULTS, DEFAULT_EXCLUDED } from './activities.js';
 import { buildControls } from './controls.js';
+import { CALIBRATION_DEFAULTS, applyCalibration } from './calibration.js';
 import { icon } from './icons.js';
 import { Player, Recorder, openFile, writeHWL, PLAYER_DEFAULTS, SPEED_RANGE as PLAYBACK_SPEED_RANGE, FINE_TUNE_RANGE } from './player.js';
 
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS = {
   manual: { ...MANUAL_DEFAULTS },
   player: { ...PLAYER_DEFAULTS },
   funscript: { ...FUNSCRIPT_DEFAULTS },
+  calibration: { ...CALIBRATION_DEFAULTS },
   showFunscriptMeters: true,
   activity: { changeProbability: 0, excluded: [...DEFAULT_EXCLUDED], options: { ...ACTIVITY_OPTION_DEFAULTS } },
   balance: { frequencyBalanceA: 200, frequencyBalanceB: 200, intensityBalanceA: 0, intensityBalanceB: 0 },
@@ -40,8 +42,11 @@ const DEFAULT_SETTINGS = {
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
+    // The positional curve used to live in the funscript settings: carry it over once
+    const { positionalEffectCurve: oldCurve, ...savedFunscript } = saved.funscript ?? {};
     return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance }, manual: { ...DEFAULT_SETTINGS.manual, ...saved.manual },
-      player: { ...DEFAULT_SETTINGS.player, ...saved.player }, funscript: { ...DEFAULT_SETTINGS.funscript, ...saved.funscript },
+      player: { ...DEFAULT_SETTINGS.player, ...saved.player }, funscript: { ...DEFAULT_SETTINGS.funscript, ...savedFunscript },
+      calibration: { ...DEFAULT_SETTINGS.calibration, ...(oldCurve != null && { positionalEffectCurve: oldCurve }), ...saved.calibration },
       activity: { ...DEFAULT_SETTINGS.activity, ...saved.activity, options: { ...DEFAULT_SETTINGS.activity.options, ...saved.activity?.options } } };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
@@ -78,7 +83,7 @@ const player = new Player();
 player.speed = settings.player.speed;
 const recorder = new Recorder();
 const activityHost = new ActivityHost(
-  { settings: settings.activity.options, positionalCurve: () => settings.funscript.positionalEffectCurve },
+  { settings: settings.activity.options, calibration: settings.calibration, positionalCurve: () => settings.calibration.positionalEffectCurve },
   () => settings.activity,
 );
 const sources = { generator, manual, player, activity: activityHost };
@@ -210,8 +215,9 @@ function tick() {
   }
 
   // Local Coyote plays the Rider stream or the local generator. A Driver's waves are only felt by the Rider.
+  // Calibration applies here only, as in Howl's device outputs: meters, recorder and Driver stream stay uncalibrated.
   if (coyote.ready) {
-    const local = driverActive() ? pulses.map(() => SILENT) : pulses;
+    const local = driverActive() ? pulses.map(() => SILENT) : pulses.map(p => applyCalibration(p, settings.calibration));
     const [fMin, fMax] = settings.freqRange;
     coyote.sendPulses(state.power[0], state.power[1], local.map(p => ({
       freqAHz: fMin + (fMax - fMin) * p.freqA,
@@ -894,7 +900,7 @@ function renderRecorder() {
 /** Loads a file into the Player. Like Howl, loading stops whatever plays and makes the file the active source. */
 async function loadPlayerFile(file) {
   try {
-    const source = await openFile(file, settings.funscript);
+    const source = await openFile(file, settings.funscript, () => settings.calibration.positionalEffectCurve);
     setPlaying(false);
     player.load(source);
     state.source = 'player';
@@ -995,6 +1001,19 @@ function renderSettings() {
   $('setIbA').value = settings.balance.intensityBalanceA;
   $('setIbB').value = settings.balance.intensityBalanceB;
   $('setRelay').value = settings.relayUrl;
+  renderCalibration();
+}
+
+const CALIBRATION_SLIDERS = [
+  ['calBalance', 'amplitudeBalance'], ['calFreqA', 'frequencyBalanceA'], ['calFreqB', 'frequencyBalanceB'],
+  ['calScaling', 'amplitudeScaling'], ['calCurve', 'positionalEffectCurve'],
+];
+
+function renderCalibration() {
+  for (const [id, key] of CALIBRATION_SLIDERS) {
+    $(id).value = settings.calibration[key];
+    $(`${id}Out`).textContent = settings.calibration[key].toFixed(2);
+  }
 }
 
 function renderAll() {
@@ -1032,6 +1051,7 @@ function selectTab(name) {
   state.tab = name;
   if (name !== 'remote') state.mainTab = name;
   if (name !== 'manual') touchpads.forEach(pad => pad.reset());
+  if (name === 'settings') renderCalibration(); // the calibration activities change it too
   if (remoteShowing()) state.unread = 0;
   renderPopups();
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
@@ -1245,6 +1265,17 @@ function wire() {
   }
   $('setRelay').onchange = e => { settings.relayUrl = e.target.value.trim() || DEFAULT_RELAY_URL; saveSettings(); renderSettings(); };
   $('resetRelay').onclick = () => { settings.relayUrl = DEFAULT_RELAY_URL; saveSettings(); renderSettings(); };
+  for (const [id, key] of CALIBRATION_SLIDERS) {
+    $(id).oninput = e => { settings.calibration[key] = Number(e.target.value); renderCalibration(); refreshActivityControls(); };
+    $(id).onchange = () => saveSettings();
+  }
+  $('calReset').onclick = () => {
+    // Reset in place: activities and funscripts read this object
+    Object.assign(settings.calibration, CALIBRATION_DEFAULTS);
+    saveSettings();
+    renderCalibration();
+    refreshActivityControls();
+  };
 
   $('connectBtn').onclick = async () => {
     if (coyote.ready) {

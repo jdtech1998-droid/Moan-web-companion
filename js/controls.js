@@ -38,7 +38,9 @@ export function buildControls(container, controls, onPersist) {
   const disabled = c => (c.disabled ? c.disabled() : false);
 
   for (const c of controls) {
-    if (c.type === 'switch') {
+    if (c.type === 'text') {
+      container.append(el(c.heading ? 'h3' : 'p', c.heading ? 'controls-heading' : 'muted small', c.text));
+    } else if (c.type === 'switch') {
       const row = el('label', `switch-row${c.heading ? ' heading' : ''}`);
       const box = el('input', 'switch');
       box.type = 'checkbox';

@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { Timer, NiceSmoother, WaveManager, wave, SMALL_AMOUNT } from '../js/activitycore.js';
 import { ActivityHost, ACTIVITY_TYPES, ACTIVITY_OPTION_DEFAULTS } from '../js/activities.js';
 import { SimplexNoise } from '../js/simplex.js';
+import { CALIBRATION_DEFAULTS } from '../js/calibration.js';
 
 const near = (actual, expected, eps = 1e-6) => assert.ok(Math.abs(actual - expected) < eps, `${actual} != ${expected}`);
-const ctx = () => ({ settings: { ...ACTIVITY_OPTION_DEFAULTS }, positionalCurve: () => 0.5 });
+
+const ctx = () => ({ settings: { ...ACTIVITY_OPTION_DEFAULTS }, calibration: { ...CALIBRATION_DEFAULTS }, positionalCurve: () => 0.5 });
 
 test('a repeating timer fires once per period, a one-shot timer once', () => {
   let fired = 0;
