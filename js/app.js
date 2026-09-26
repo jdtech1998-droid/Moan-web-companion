@@ -135,6 +135,16 @@ const state = {
 
 // Wide screens show Remote in its own column, with the other tabs on the left (see the matching @media in app.css)
 const wideQuery = matchMedia('(min-width: 1200px)');
+// The wide layout looks right at about 1600 x 765 CSS pixels (a maximized browser on a 1600x900 screen at 100% scaling).
+// On a window with more room, e.g. a laptop at a higher resolution, zoom the whole page up so it fills the screen
+// the same way. Never below 1: a smaller window keeps today's size and scrolls inside its columns.
+const FIT_SIZE = [1600, 765];
+
+function fitToScreen() {
+  const zoom = wideQuery.matches ? Math.max(1, Math.min(innerWidth / FIT_SIZE[0], innerHeight / FIT_SIZE[1])) : 1;
+  document.documentElement.style.setProperty('--zoom', zoom.toFixed(3));
+}
+
 const remoteShowing = () => state.tab === 'remote' || wideQuery.matches;
 
 const riderActive = () => state.session instanceof RiderSession;
@@ -1025,12 +1035,12 @@ function ago(ms) {
 }
 
 function renderFeed(newSeq) {
-  renderPopups();
+  renderPopups(newSeq);
   const now = Date.now();
   const pinned = $('pinnedFeed');
   pinned.replaceChildren(...state.feed.filter(e => !e.acked).map(e => {
-    const row = el('div', `pinned-item${isStop(e.preset) ? ' stop' : ''}`, presetStyle(e.preset));
-    row.append(el('span', null, null, e.preset.icon), el('span', null, null, e.preset.message), el('span', 'when', null, ago(now - e.at)));
+    const row = el('div', `pinned-item${isStop(e.preset) ? ' stop' : ''}${e.seq === newSeq ? ' new' : ''}`, presetStyle(e.preset));
+    row.append(el('span', 'fb-icon', null, e.preset.icon), el('span', null, null, e.preset.message), el('span', 'when', null, ago(now - e.at)));
     const ok = el('button', null, null, 'Got it');
     ok.onclick = () => { e.acked = true; renderFeed(); };
     row.append(ok);
@@ -1043,8 +1053,8 @@ function renderFeed(newSeq) {
     return;
   }
   list.replaceChildren(...state.feed.map(e => {
-    const row = el('li', `feed-item${e.seq === newSeq ? ' new' : ''}`, presetStyle(e.preset));
-    row.append(el('span', null, null, e.preset.icon), el('span', null, null, e.preset.message));
+    const row = el('li', `feed-item heat-${heatTier(e.count)}${e.seq === newSeq ? ' new' : ''}`, presetStyle(e.preset));
+    row.append(el('span', 'fb-icon', null, e.preset.icon), el('span', null, null, e.preset.message));
     if (e.count > 1) row.append(el('span', 'count', null, `×${e.count}`));
     row.append(el('span', 'when', null, ago(now - e.at)));
     return row;
@@ -1053,7 +1063,7 @@ function renderFeed(newSeq) {
 
 // Feedback shown over the other tabs, so the Driver sees it while busy on the Generator or Settings.
 // Safety words stay until tapped; the rest fade after POPUP_MS. Tapping a pop-up opens the Remote tab.
-function renderPopups() {
+function renderPopups(newSeq) {
   const badge = $('remoteBadge');
   badge.hidden = state.unread === 0;
   badge.textContent = state.unread > 9 ? '9+' : String(state.unread);
@@ -1066,9 +1076,9 @@ function renderPopups() {
   }
   const now = Date.now();
   box.replaceChildren(...state.feed.filter(e => !e.acked || (!remoteShowing() && e.popUntil > now)).map(e => {
-    const pop = el('div', `feed-popup${!e.acked ? ' pinned' : ''}${isStop(e.preset) ? ' stop' : ''}`, presetStyle(e.preset));
+    const pop = el('div', `feed-popup heat-${heatTier(e.count)}${!e.acked ? ' pinned' : ''}${isStop(e.preset) ? ' stop' : ''}${e.seq === newSeq ? ' new' : ''}`, presetStyle(e.preset));
     pop.setAttribute('role', e.acked ? 'status' : 'alert');
-    pop.append(el('span', null, null, e.preset.icon), el('span', null, null, e.preset.message));
+    pop.append(el('span', 'fb-icon', null, e.preset.icon), el('span', null, null, e.preset.message));
     if (e.count > 1) pop.append(el('span', 'count', null, `×${e.count}`));
     pop.onclick = () => { if (driverActive()) selectTab('remote'); };
     if (!e.acked) {
@@ -1079,6 +1089,9 @@ function renderPopups() {
     return pop;
   }));
 }
+
+/** How "hot" a repeated feedback looks, as in the phone app: 0 = normal, up to 3 for a long burst. */
+const heatTier = count => (count >= 10 ? 3 : count >= 6 ? 2 : count >= 3 ? 1 : 0);
 
 const presetStyle = p => `--fb-bg:${p.background};--fb-badge:${p.badge}`;
 
@@ -1450,6 +1463,9 @@ function selectTab(name) {
 function wire() {
   document.querySelectorAll('.tab').forEach(t => { t.onclick = () => selectTab(t.dataset.tab); });
   wideQuery.addEventListener('change', () => selectTab(state.tab));
+  // Moving the window to another screen resizes it too
+  fitToScreen();
+  addEventListener('resize', fitToScreen);
   selectTab(state.tab);
   document.querySelectorAll('[data-goto]').forEach(a => {
     a.onclick = e => { e.preventDefault(); selectTab(a.dataset.goto); };

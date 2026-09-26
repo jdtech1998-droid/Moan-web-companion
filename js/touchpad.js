@@ -47,10 +47,12 @@ export class Touchpad {
   /** Pointer position as pad coordinates, clamped so the dot stays inside the border. */
   toPad(e, dragging) {
     const r = this.el.getBoundingClientRect();
-    const outer = r.width / 2;
+    // Pointer and rect are in screen pixels; the border and dot sizes are in page pixels, which a page zoom scales
+    const zoom = r.width / this.el.offsetWidth || 1;
+    const outer = r.width / 2 / zoom;
     const inner = Math.max(outer - BORDER - DOT_RADIUS, 1);
-    const dx = e.clientX - (r.left + outer);
-    const dy = e.clientY - (r.top + outer);
+    const dx = (e.clientX - r.left) / zoom - outer;
+    const dy = (e.clientY - r.top) / zoom - outer;
     const dist = Math.hypot(dx, dy);
     // A touch can start anywhere in the circle; a drag can wander outside it
     if (!dragging && dist > outer) return null;

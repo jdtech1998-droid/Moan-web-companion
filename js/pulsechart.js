@@ -80,10 +80,10 @@ export class PulseChart {
     const css = getComputedStyle(this.container);
     const grid = css.getPropertyValue('--outline-variant').trim();
     const label = css.getPropertyValue('--on-surface-variant').trim();
-    const dpr = window.devicePixelRatio || 1;
-
     for (const chart of this.charts) {
       const { canvas } = chart;
+      // Device pixels per page pixel, including any page zoom, so the chart stays sharp
+      const dpr = (window.devicePixelRatio || 1) * (canvas.getBoundingClientRect().width / canvas.clientWidth || 1);
       const w = Math.round(canvas.clientWidth * dpr);
       const h = Math.round(canvas.clientHeight * dpr);
       if (w <= 1 || h <= 1) continue;

@@ -1,5 +1,8 @@
 * { box-sizing: border-box; }
 
+/* --zoom scales the wide layout up to fill big or high resolution screens (fitToScreen in app.js) */
+html { zoom: var(--zoom, 1); }
+
 html, body {
   margin: 0;
   background: var(--background);
@@ -239,10 +242,37 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
 .feed-item, .pinned-item {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px;
-  background: var(--fb-bg); color: #F2EEF8;
+  color: #F2EEF8;
 }
-.feed-item.new { animation: arrive .5s; }
-@keyframes arrive { from { box-shadow: 0 0 0 3px var(--fb-badge); } }
+/* As the phone app's feedback HUD: every press (repeats too) flashes the whole tile towards its badge colour
+   and pops the badge; repeats add a lasting tint and a glow from ×3, a pulsing glow from ×6, more from ×10. */
+.feed-item, .pinned-item, .feed-popup { --heat: 0%; background: color-mix(in srgb, var(--fb-badge) var(--heat), var(--fb-bg)); }
+.heat-1 { --heat: 12%; }
+.heat-2 { --heat: 22%; }
+.heat-3 { --heat: 32%; }
+.fb-icon { display: inline-block; }
+.feed-item.heat-1 { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--fb-badge) 35%, transparent); }
+.feed-item.heat-2 { font-weight: 500; animation: glow-2 .7s linear infinite alternate; }
+.feed-item.heat-3 { font-weight: 700; animation: glow-3 .45s linear infinite alternate; }
+.feed-item.new { animation: fb-flash .45s ease-out; }
+.feed-item.heat-2.new { animation: fb-flash .45s ease-out, glow-2 .7s linear infinite alternate; }
+.feed-item.heat-3.new { animation: fb-flash .45s ease-out, glow-3 .45s linear infinite alternate; }
+.pinned-item.new { animation: fb-flash .45s ease-out; }
+.pinned-item.stop.new { animation: fb-flash .45s ease-out, pulse 1s infinite alternate; }
+.new .fb-icon, .new .count { animation: badge-pop .45s ease-out; }
+.heat-2 .count { font-size: 13px; }
+.heat-3 .count { font-size: 14px; }
+.heat-3 .fb-icon { font-size: 1.25em; }
+@keyframes fb-flash { from { background: color-mix(in srgb, var(--fb-badge) 55%, var(--fb-bg)); } }
+@keyframes badge-pop { from { transform: scale(1.35); } }
+@keyframes glow-2 {
+  from { box-shadow: 0 0 0 2px color-mix(in srgb, var(--fb-badge) 35%, transparent); }
+  to { box-shadow: 0 0 0 2px color-mix(in srgb, var(--fb-badge) 90%, transparent); }
+}
+@keyframes glow-3 {
+  from { box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--fb-badge) 55%, transparent), 0 0 10px color-mix(in srgb, var(--fb-badge) 25%, transparent); }
+  to { box-shadow: 0 0 0 2.5px var(--fb-badge), 0 0 16px color-mix(in srgb, var(--fb-badge) 50%, transparent); }
+}
 .feed-item .when, .pinned-item .when { margin-left: auto; font-size: 12px; opacity: .7; white-space: nowrap; }
 .feed-item .count { background: var(--fb-badge); color: #141318; border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
 .pinned-item { box-shadow: 0 0 0 2px var(--fb-badge); margin-bottom: 6px; font-weight: 700; }
@@ -405,7 +435,7 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 }
 .feed-popup {
   display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px;
-  background: var(--fb-bg); color: #F2EEF8; font-weight: 600; cursor: pointer;
+  color: #F2EEF8; font-weight: 600; cursor: pointer;
   box-shadow: 0 0 0 2px var(--fb-badge), 0 6px 20px rgba(0, 0, 0, .45);
   animation: drop-in .25s ease-out;
 }
@@ -415,6 +445,8 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 @keyframes stop-glow { to { box-shadow: 0 0 0 4px var(--fb-badge), 0 0 24px 4px var(--fb-badge); } }
 .feed-popup button { margin-left: auto; background: rgba(255,255,255,.15); color: inherit; border-radius: 999px; padding: 6px 14px; font-size: 13px; }
 .feed-popup .count + button { margin-left: 8px; }
+.feed-popup.new { animation: drop-in .25s ease-out, fb-flash .45s ease-out; }
+.feed-popup.stop.new { animation: drop-in .25s ease-out, fb-flash .45s ease-out, stop-glow 1s .25s infinite alternate; }
 @keyframes drop-in { from { transform: translateY(12px); opacity: 0; } }
 
 .toast {
@@ -441,7 +473,8 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 /* ---- Wide screens: the current tab on the left, power in the middle, Remote always on the right ---- */
 @media (min-width: 1200px) {
   .app {
-    max-width: 1640px; height: 100vh; min-height: 0;
+    /* vh isn't zoomed with the page, so divide it back down */
+    max-width: 1640px; height: calc(100vh / var(--zoom, 1)); min-height: 0;
     display: grid;
     /* Equal outer columns keep the power column in the true center */
     grid-template-columns: minmax(0, 1fr) minmax(300px, 400px) minmax(0, 1fr);

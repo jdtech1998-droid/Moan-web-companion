@@ -40,6 +40,7 @@ The public name is "Moan Web Companion". The original Howl (Amethyst-Sysadmin) l
 ## Layout
 - Below 1200px wide: the phone layout (power header, tab row, one tab at a time). Rider feedback on the Driver pops up over other tabs (safety words stay until tapped) and the Remote tab shows an unread count.
 - 1200px and up: three columns. Left: the tab row and the open tab (Remote's tab button is hidden). Center: power, meters, mute/play, frequency range, device bar. Right: Remote, always visible, with E-STOP stuck to its bottom. Left and right are equal width so the power column stays centered.
+- Fit to screen (wide layout only): `fitToScreen()` in app.js sets `--zoom` = max(1, min(width / 1600, height / 765)) and CSS zooms `html` by it, so a window with more CSS pixels than a maximized browser on a 1600x900 screen (the user's 24" monitor; their 1080p laptop gets about 1.2x) fills the same way instead of leaving empty space. Never below 1. `vh` isn't zoomed, so the wide `.app` height is `calc(100vh / var(--zoom))`. Code that mixes pointer or rect coordinates (screen pixels) with element sizes (page pixels) must divide by the zoom, as touchpad.js and pulsechart.js do.
 - The breakpoint lives in two places that must match: `@media (min-width: 1200px)` in `css/app.css` and `wideQuery` in `js/app.js`.
 
 ## Next up
