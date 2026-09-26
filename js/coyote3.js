@@ -14,8 +14,12 @@ const BATTERY_POLL_MS = 60020;
 
 export const bluetoothSupported = () => typeof navigator !== 'undefined' && !!navigator.bluetooth;
 
+export const COYOTE3_NAME_PREFIX = '47L121';
+export const COYOTE3_SERVICES = [MAIN_SERVICE, BATTERY_SERVICE];
+
 export class Coyote3 {
   constructor() {
+    this.model = 'Coyote 3';
     this.device = null;
     this.writeChar = null;
     this.ready = false;
@@ -28,13 +32,8 @@ export class Coyote3 {
     /** @type {(pct:number)=>void} */ this.onBattery = () => {};
   }
 
-  async connect() {
-    if (!bluetoothSupported()) throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge on desktop or Android.');
-    this.onStatus('Scanning');
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: '47L121' }],
-      optionalServices: [MAIN_SERVICE, BATTERY_SERVICE],
-    });
+  /** @param {BluetoothDevice} device chosen in the browser's device picker */
+  async connect(device) {
     this.device = device;
     device.addEventListener('gattserverdisconnected', () => this.handleDisconnect());
 

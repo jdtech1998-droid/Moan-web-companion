@@ -1,7 +1,8 @@
 import {
   DEFAULT_RELAY_URL, POWER_MAX, ChannelEncoder, cmd, normalizedToWireHz, clamp,
 } from './protocol.js';
-import { Coyote3, bluetoothSupported } from './coyote3.js';
+import { Coyote3, bluetoothSupported, COYOTE3_NAME_PREFIX, COYOTE3_SERVICES } from './coyote3.js';
+import { Coyote2, COYOTE2_NAME, COYOTE2_SERVICES } from './coyote2.js';
 import { RemoteStream } from './stream.js';
 import { Generator, SHAPE_NAMES, SPEED_RANGE } from './generator.js';
 import { RiderSession, DriverSession } from './remote.js';
@@ -77,7 +78,7 @@ const FEED_MAX = 50;
 const POPUP_MS = 4000; // how long a non-safety pop-up stays up on another tab
 const AUTO_CHANGE_TICKS = 300; // 30s
 
-const coyote = new Coyote3();
+let coyote = new Coyote3(); // replaced by the right driver when a box is picked
 const paw = new PawPrints();
 const generator = new Generator();
 if (Array.isArray(settings.generator) && settings.generator.length === 2) generator.channels = settings.generator;
@@ -637,7 +638,7 @@ function renderDevice() {
     renderPaw();
     return;
   }
-  let status = coyote.ready ? `Coyote 3${coyote.battery != null ? ` · ${coyote.battery}%` : ''}` : (coyote.statusText ?? 'Disconnected');
+  let status = coyote.ready ? `${coyote.model}${coyote.battery != null ? ` · ${coyote.battery}%` : ''}` : (coyote.statusText ?? 'Disconnected');
   if (paw.ready) {
     // "Disconnected · Paw" would read as the Paw being disconnected
     if (status === 'Disconnected') status = 'No Coyote';
@@ -647,6 +648,21 @@ function renderDevice() {
   label.textContent = coyote.ready ? 'Disconnect' : 'Connect';
   button.disabled = coyote.busy === true;
   renderPaw();
+}
+
+/** Hooks the page up to the current Coyote driver (a new one is made for each connection). */
+function attachCoyote() {
+  const c = coyote;
+  c.onStatus = s => { c.statusText = s; renderDevice(); renderGeneratorHint(); };
+  c.onBattery = () => renderDevice();
+  c.onDevicePower = (a, b) => {
+    setPower(0, a, { send: !riderActive() });
+    setPower(1, b, { send: !riderActive() });
+    if (riderBound()) {
+      state.session.send(cmd.power(0, state.power[0]));
+      state.session.send(cmd.power(1, state.power[1]));
+    }
+  };
 }
 
 function renderPaw() {
@@ -1354,15 +1370,25 @@ function wire() {
       return;
     }
     coyote.busy = true;
+    coyote.statusText = 'Scanning';
     renderDevice();
     try {
-      await coyote.connect();
+      // One picker for both boxes; the name the user picks decides which driver talks to it
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: COYOTE3_NAME_PREFIX }, { name: COYOTE2_NAME }],
+        optionalServices: [...COYOTE3_SERVICES, ...COYOTE2_SERVICES],
+      });
+      coyote = device.name === COYOTE2_NAME ? new Coyote2() : new Coyote3();
+      attachCoyote();
+      coyote.busy = true;
+      await coyote.connect(device);
       syncCoyoteLimits();
     } catch (e) {
       coyote.statusText = 'Disconnected';
       // Closing the device picker isn't an error worth showing
       if (e.name !== 'NotFoundError') toast(e.message);
       coyote.device?.gatt?.disconnect();
+      coyote.handleDisconnect();
     } finally {
       coyote.busy = false;
       renderDevice();
@@ -1398,16 +1424,7 @@ function wire() {
   paw.onPressed = pawPressed;
   // A Paw that drops is a dead emergency stop: say so plainly and for longer than a normal toast
   paw.onLost = reason => toast(`Paw Prints ${reason}: its buttons no longer work.`, 10000);
-  coyote.onStatus = s => { coyote.statusText = s; renderDevice(); renderGeneratorHint(); };
-  coyote.onBattery = () => renderDevice();
-  coyote.onDevicePower = (a, b) => {
-    setPower(0, a, { send: !riderActive() });
-    setPower(1, b, { send: !riderActive() });
-    if (riderBound()) {
-      state.session.send(cmd.power(0, state.power[0]));
-      state.session.send(cmd.power(1, state.power[1]));
-    }
-  };
+  attachCoyote();
 
   // Feed timestamps tick along
   setInterval(() => { if (driverActive() && state.feed.length) renderFeed(); }, 5000);
