@@ -73,26 +73,34 @@ export function buildControls(container, controls, onPersist) {
         row.classList.toggle('disabled', select.disabled);
       });
     } else if (c.type === 'smoother') {
-      // Target and rate side by side, as Howl's NiceSmootherControl
+      // Target and rate side by side, as Howl's NiceSmootherControl. No rateRange: target only.
       const s = c.smoother;
-      const row = el('div', 'smoother-control');
-      const targetOut = el('output');
-      const rateOut = el('output');
-      const target = range(c.targetRange[0], c.targetRange[1], 0.01, v => { s.setTarget(v); targetOut.textContent = fmt(v); });
-      const rate = range(c.rateRange[0], c.rateRange[1], 0.01, v => { s.rate = v; rateOut.textContent = fmt(v); });
+      const row = el('div', c.rateRange ? 'smoother-control' : 'smoother-control target-only');
       const col = (label, out, input, cls) => {
         const box = el('label', cls);
         box.append(el('span', null, label), out, input);
         return box;
       };
-      row.append(col(c.label, targetOut, target, 'slider-setting'), col('Rate', rateOut, rate, 'slider-setting rate'));
+      const targetOut = el('output');
+      const target = range(c.targetRange[0], c.targetRange[1], c.step ?? 0.01, v => { s.setTarget(v); targetOut.textContent = fmt(v); });
+      row.append(col(c.label, targetOut, target, 'slider-setting'));
+      let rate = null;
+      let rateOut = null;
+      if (c.rateRange) {
+        rateOut = el('output');
+        rate = range(c.rateRange[0], c.rateRange[1], 0.01, v => { s.rate = v; rateOut.textContent = fmt(v); });
+        row.append(col('Rate', rateOut, rate, 'slider-setting rate'));
+      }
       container.append(row);
       refreshers.push(() => {
         setIfIdle(target, s.target);
-        setIfIdle(rate, s.rate);
         if (!target.dataset.dragging) targetOut.textContent = fmt(s.target);
-        if (!rate.dataset.dragging) rateOut.textContent = fmt(s.rate);
-        target.disabled = rate.disabled = disabled(c);
+        target.disabled = disabled(c);
+        if (rate) {
+          setIfIdle(rate, s.rate);
+          if (!rate.dataset.dragging) rateOut.textContent = fmt(s.rate);
+          rate.disabled = target.disabled;
+        }
         row.classList.toggle('disabled', target.disabled);
       });
     } else if (c.type === 'buttons') {

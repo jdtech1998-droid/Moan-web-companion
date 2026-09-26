@@ -3,13 +3,13 @@
 //   { type: 'switch', label, get, set, heading? }
 //   { type: 'slider', label, min, max, step, get, set, disabled?, persist? }
 //   { type: 'select', label, options: [[value, label]], get, set, disabled? }
-//   { type: 'smoother', label, smoother, targetRange, rateRange, disabled? }
+//   { type: 'smoother', label, smoother, targetRange, rateRange?, step?, disabled? }  (no rateRange: no rate slider)
 //   { type: 'buttons', buttons: [[label, onClick]], disabled? }
 // `disabled` is a function (checked on every refresh); `persist` saves the page's settings after a change.
 
 import {
   Activity, Timer, NiceSmoother, WaveManager, CyclicalWave, WaveShape, wave, SMALL_AMOUNT,
-  randomInRange, randomItem, randomBool, scaleVelocity, feelAdjustment, clamp,
+  randomInRange, randomInt, randomItem, randomBool, scaleVelocity, feelAdjustment, clamp,
   scaleBetween, engulfEffect, smoothstep, lerp,
 } from './activitycore.js';
 import { NoiseGenerator } from './simplex.js';
@@ -745,6 +745,227 @@ export class RelentlessActivity extends Activity {
   }
 }
 
+// ---- Overflowing ----------------------------------------------------------------------------------
+
+const OVERFLOW_SPEED = [0.05, 0.1];
+const OVERFLOW_FREQ = [0.6, 1.0];
+const OVERFLOW_FREQ_RATE = [0.02, 0.05];
+const OVERFLOW_LONG_POWER = [0.85, 0.99];
+const OVERFLOW_SHORT_POWER = [0.8, 0.99];
+
+export class OverflowingActivity extends Activity {
+  initialise() {
+    this.waveManager = new WaveManager();
+    this.freqA = new NiceSmoother(randomInRange(OVERFLOW_FREQ));
+    this.freqB = new NiceSmoother(randomInRange(OVERFLOW_FREQ));
+    this.updateFrequencyTarget(this.freqA);
+    this.updateFrequencyTarget(this.freqB);
+    for (const c of [this.waveManager, this.freqA, this.freqB]) this.manager.register(c);
+    this.nextIteration();
+  }
+
+  /** A rise to a high plateau that ripples between full and 85% power many times, then falls back. */
+  createLongWaveShape() {
+    const power = randomInRange(OVERFLOW_LONG_POWER);
+    const lowPower = power * 0.85;
+    const highPowerPortion = randomInRange([0.8, 0.9]);
+    const laps = randomInt(5, 20);
+    const lapIncrement = highPowerPortion / (laps * 2);
+    let t = (1 - highPowerPortion) / 2;
+    const points = [[0, 0], [t, lowPower]];
+    for (let i = 0; i < laps; i++) {
+      t += lapIncrement;
+      points.push([t, power]);
+      t += lapIncrement;
+      points.push([t, lowPower]);
+    }
+    return new WaveShape('longWave', points);
+  }
+
+  updateFrequencyTarget(freq) {
+    freq.setTarget(randomInRange(OVERFLOW_FREQ), randomInRange(OVERFLOW_FREQ_RATE), () => this.updateFrequencyTarget(freq));
+  }
+
+  nextIteration() {
+    const w = this.waveManager;
+    const shortShape = wave('shortWaveShape', [[0, 0], [0.5, randomInRange(OVERFLOW_SHORT_POWER)]]);
+    w.addWave(new CyclicalWave(this.createLongWaveShape()), 'longWave');
+    w.addWave(shortShape.repeated(randomInt(4, 10), 'shortWave'), 'shortWave');
+    w.setSpeed(randomInRange(OVERFLOW_SPEED));
+    w.restart();
+    w.stopAtEndOfCycle(() => this.nextIteration());
+  }
+
+  getPulse() {
+    const longAmp = this.waveManager.position('longWave');
+    const shortAmp = Math.min(this.waveManager.position('shortWave'), longAmp);
+    return { ampA: shortAmp, ampB: longAmp, freqA: this.freqA.value, freqB: this.freqB.value };
+  }
+}
+
+// ---- Succubus -------------------------------------------------------------------------------------
+
+const SUCCUBUS_SPEED = [0.06, 2.0];
+const SUCCUBUS_SPEED_BIAS = 3.5;
+const SUCCUBUS_SPEED_RATE = [0.03, 0.2];
+const SUCCUBUS_PROPORTION_RATE = 0.05;
+const SUCCUBUS_SHAPE_CHANGE_PROBABILITY = 0.3;
+const SUCCUBUS_PROPORTION_CHANGE_PROBABILITY = 0.3;
+const SUCCUBUS_SPEED_CHANGE_PROBABILITY = 0.3;
+
+export class SuccubusActivity extends Activity {
+  initialise() {
+    this.waveManagers = [new WaveManager(), new WaveManager()];
+    this.ampProportionA = new NiceSmoother(randomInRange([0, 1]));
+    this.ampProportionB = new NiceSmoother(randomInRange([0, 1]));
+    this.freqProportionA = new NiceSmoother(randomInRange([0, 1]));
+    this.freqProportionB = new NiceSmoother(randomInRange([0, 1]));
+    this.proportions = [this.ampProportionA, this.ampProportionB, this.freqProportionA, this.freqProportionB];
+    const shapeChange = new Timer(() => randomInRange([10, 40]), true, () => this.shapeChange());
+    const speedChange = new Timer(() => randomInRange([10, 30]), true, () => this.speedChange());
+    const proportionChange = new Timer(() => randomInRange([10, 30]), true, () => this.proportionChange());
+    for (const w of this.waveManagers) {
+      w.addWave(this.randomWave(randomInt(2, 6)), 'amp');
+      w.addWave(this.randomWave(randomInt(2, 6)), 'freq');
+      w.setSpeed(randomInRange(SUCCUBUS_SPEED, SUCCUBUS_SPEED_BIAS));
+      this.manager.register(w);
+    }
+    for (const c of [shapeChange, speedChange, proportionChange, ...this.proportions]) this.manager.register(c);
+    shapeChange.start();
+    speedChange.start();
+    proportionChange.start();
+  }
+
+  /** Points at random times at least 0.05 apart; at least one of them reaches 0.8 or more. */
+  randomWave(numPoints) {
+    const maxPower = 0.95;
+    const powerLowerBound = 0.8;
+    const points = [];
+    for (let i = 0; i < numPoints; i++) {
+      let t;
+      do t = randomInRange([0, 1 - SMALL_AMOUNT]);
+      while (points.some(([pt]) => Math.abs(pt - t) < 0.05));
+      points.push([t, randomInRange([0, maxPower])]);
+    }
+    if (points.every(([, pos]) => pos < powerLowerBound)) {
+      randomItem(points)[1] = randomInRange([powerLowerBound, maxPower]);
+    }
+    return wave('randomWave', points);
+  }
+
+  proportionChange() {
+    for (const p of this.proportions) {
+      if (Math.random() < SUCCUBUS_PROPORTION_CHANGE_PROBABILITY) p.setTarget(randomInRange([0, 1]), SUCCUBUS_PROPORTION_RATE);
+    }
+  }
+
+  shapeChange() {
+    for (const w of this.waveManagers) {
+      if (Math.random() < SUCCUBUS_SHAPE_CHANGE_PROBABILITY) w.addWave(this.randomWave(randomInt(2, 6)), 'amp');
+      if (Math.random() < SUCCUBUS_SHAPE_CHANGE_PROBABILITY) w.addWave(this.randomWave(randomInt(2, 6)), 'freq');
+    }
+  }
+
+  speedChange() {
+    for (const w of this.waveManagers) {
+      if (Math.random() < SUCCUBUS_SPEED_CHANGE_PROBABILITY) {
+        w.setTargetSpeed(randomInRange(SUCCUBUS_SPEED, SUCCUBUS_SPEED_BIAS), randomInRange(SUCCUBUS_SPEED_RATE));
+      }
+    }
+  }
+
+  getPulse() {
+    const [w1, w2] = this.waveManagers;
+    const amp1 = w1.position('amp');
+    const amp2 = w2.position('amp');
+    const freq1 = w1.position('freq');
+    const freq2 = w2.position('freq');
+    const mix = (a, b, p) => a * p.value + b * (1 - p.value);
+    return {
+      ampA: mix(amp1, amp2, this.ampProportionA),
+      ampB: mix(amp1, amp2, this.ampProportionB),
+      freqA: mix(freq1, freq2, this.freqProportionA),
+      freqB: mix(freq1, freq2, this.freqProportionB),
+    };
+  }
+}
+
+// ---- Sine time ------------------------------------------------------------------------------------
+
+const SINE_MAG = [0.1, 0.3];
+const SINE_SPEED = [0.4, 0.88];
+const SINE_FREQ = [0.5, 0.75];
+const SINE_FREQ_SHIFT = [-0.25, 0.25];
+const SINE_AMP = [0.8, 1.0];
+const SINE_FADE_TIME = 0.5;
+
+export class SineTimeActivity extends Activity {
+  initialise() {
+    this.manual = false;
+    this.sineSpeed = 0.2;
+    this.freqChange = 0;
+    this.sineMag = new NiceSmoother(0.2, [0, 1]);
+    this.offset = new NiceSmoother(0, [-Math.PI, Math.PI]);
+    this.sinePhase = 0;
+    this.patternTimer = new Timer(() => randomInRange([8, 15]), false, () => this.breakTimer.reset());
+    // A short silence between patterns
+    this.breakTimer = new Timer(() => randomInRange([0.8, 5], 2.5), false, () => this.nextIteration());
+    for (const c of [this.patternTimer, this.breakTimer, this.offset, this.sineMag]) this.manager.register(c);
+    this.nextIteration();
+  }
+
+  nextIteration() {
+    if (!this.manual) {
+      this.sineMag.setImmediately(randomInRange(SINE_MAG));
+      this.sineSpeed = randomInRange(SINE_SPEED);
+      this.freqChange = randomInRange(SINE_FREQ_SHIFT);
+      this.offset.setImmediately(randomInRange([-Math.PI, Math.PI]));
+    }
+    this.freqA = randomInRange(SINE_FREQ);
+    this.freqB = randomInRange(SINE_FREQ);
+    this.amp = randomInRange(SINE_AMP); // set as in Howl, which doesn't use it either
+    this.patternTimer.reset();
+  }
+
+  setManual(manual) {
+    this.manual = manual;
+  }
+
+  runSimulation(dt) {
+    super.runSimulation(dt);
+    this.sinePhase = (this.sinePhase + 2 * Math.PI * this.sineSpeed * dt) % (2 * Math.PI);
+  }
+
+  getPulse() {
+    if (this.breakTimer.isRunning) return { ampA: 0, ampB: 0, freqA: 0, freqB: 0 };
+    const fadeIn = clamp(this.patternTimer.elapsedTime / SINE_FADE_TIME, 0, 1);
+    const fadeOut = clamp(this.patternTimer.remainingTime / SINE_FADE_TIME, 0, 1);
+    const fade = Math.min(fadeIn, fadeOut);
+    const mag = this.sineMag.value;
+    const baseAmp = 1 - mag;
+    const amp = Math.sqrt(1 - Math.max(SINE_MAG[1] - mag, 0));
+    const phaseA = Math.sin(this.sinePhase);
+    const phaseB = Math.sin(this.sinePhase + this.offset.value);
+    return {
+      ampA: clamp((baseAmp + mag * phaseA) * fade * amp, 0, 1),
+      ampB: clamp((baseAmp + mag * phaseB) * fade * amp, 0, 1),
+      freqA: clamp(this.freqA + this.freqChange * phaseA, 0, 1),
+      freqB: clamp(this.freqB + this.freqChange * phaseB, 0, 1),
+    };
+  }
+
+  temporaryControls() {
+    const off = () => !this.manual;
+    return [
+      manualSwitch(this),
+      { type: 'smoother', label: 'Sine magnitude', smoother: this.sineMag, targetRange: [0, 0.4], step: 0.01, disabled: off },
+      { type: 'slider', label: 'Sine speed', min: 0.2, max: 1, step: 0.01, get: () => this.sineSpeed, set: v => { this.sineSpeed = v; }, disabled: off },
+      { type: 'smoother', label: 'Sine offset', smoother: this.offset, targetRange: [-Math.PI, Math.PI], step: (2 * Math.PI) / 40, disabled: off },
+      { type: 'slider', label: 'Frequency change', min: SINE_FREQ_SHIFT[0], max: SINE_FREQ_SHIFT[1], step: 0.01, get: () => this.freqChange, set: v => { this.freqChange = v; }, disabled: off },
+    ];
+  }
+}
+
 // ---- The list the Activity tab picks from, in Howl's order ----------------------------------------
 
 export const ACTIVITY_TYPES = [
@@ -760,6 +981,9 @@ export const ACTIVITY_TYPES = [
   { id: 'FASTSLOW', name: 'Fast/slow', icon: 'speed', create: ctx => new FastSlowActivity(ctx) },
   { id: 'SIMPLEX', name: 'Simplex', icon: 'wave_triangle', create: ctx => new SimplexActivity(ctx) },
   { id: 'RELENTLESS', name: 'Relentless', icon: 'hammer', create: ctx => new RelentlessActivity(ctx) },
+  { id: 'OVERFLOWING', name: 'Overflowing', icon: 'water_drop', create: ctx => new OverflowingActivity(ctx) },
+  { id: 'SUCCUBUS', name: 'Succubus', icon: 'succubus', create: ctx => new SuccubusActivity(ctx) },
+  { id: 'SINETIME', name: 'Sine time', icon: 'wave', create: ctx => new SineTimeActivity(ctx) },
 ];
 
 /** Excluded from random select by default, as in Howl (the calibration activities, once ported). */
