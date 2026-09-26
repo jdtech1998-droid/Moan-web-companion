@@ -35,6 +35,21 @@ export const feelAdjustment = (value, feel) => clamp(value ** (1 / feel), 0, 1);
 
 export const lerp = (a, b, t) => a + (b - a) * t;
 
+/** Howl's Double.scaleBetween: maps 0-1 onto a range and clamps to it. */
+export const scaleBetween = (v, [a, b]) => clamp(a + (b - a) * v, Math.min(a, b), Math.max(a, b));
+
+/**
+ * Howl's calculateEngulfEffect: each channel builds up until the position reaches its engulf point,
+ * then falls off slowly past it. Returns [ampA, ampB].
+ */
+export function engulfEffect(amplitude, position, engulfA, engulfB) {
+  const channel = engulf => {
+    if (position <= engulf) return engulf === 0 ? 1 : Math.sqrt(position / engulf);
+    return Math.sqrt(1 - Math.abs(position - engulf) * 0.8);
+  };
+  return [channel(engulfA) * amplitude, channel(engulfB) * amplitude];
+}
+
 export { positionalEffect };
 
 // ---- Components -----------------------------------------------------------------------------------

@@ -326,6 +326,8 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .switch-row.heading { font-size: 20px; font-weight: 500; padding: 0; }
 .smoother-control { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 0.45fr); gap: 16px; }
 .controls .disabled { opacity: .5; }
+.button-row { display: flex; gap: 8px; }
+.button-row button { flex: 1 1 0; }
 
 /* ---- Manual ---- */
 .manual-actions { display: flex; justify-content: center; gap: 8px; }

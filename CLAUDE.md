@@ -35,10 +35,9 @@ The public name is "Moan Web Companion". The original Howl (Amethyst-Sysadmin) l
 - The breakpoint lives in two places that must match: `@media (min-width: 1200px)` in `css/app.css` and `wideQuery` in `js/app.js`.
 
 ## Next up
-Activity tab port, in batches. Done: the toolkit (`activitycore.js`, `simplex.js`) and 5 activities: Infinite licks, Penetration, Sliding vibrator, Milkmaster 3000, Chaos.
-1. Next batch: Luxury HJ, Opposites, BJ Megamix, Fast/slow, Simplex, Relentless (Activity.kt from line 858).
-2. Then Overflowing, Succubus, Sine time.
-3. Then the calibration activities (Calibrate power, frequency, position). They are excluded from random select by default. "Calibrate position" sets Howl's positional effect curve; on the web that value currently lives in `settings.funscript.positionalEffectCurve`, and the Funscript "Reset" button resets it too. Move it to its own setting when porting that activity.
+Activity tab port, in batches. Done: the toolkit (`activitycore.js`, `simplex.js`) and 11 activities: Infinite licks, Penetration, Sliding vibrator, Milkmaster 3000, Chaos, Luxury HJ, Opposites, BJ Megamix, Fast/slow, Simplex, Relentless.
+1. Next batch: Overflowing, Succubus, Sine time (Activity.kt from line 2048).
+2. Then the calibration activities (Calibrate power, frequency, position). They are excluded from random select by default. "Calibrate position" sets Howl's positional effect curve; on the web that value currently lives in `settings.funscript.positionalEffectCurve`, and the Funscript "Reset" button resets it too. Move it to its own setting when porting that activity.
 Each activity: add the class to `activities.js`, its persisted options to `ACTIVITY_OPTION_DEFAULTS`, an entry in `ACTIVITY_TYPES` (Howl's order), and it is covered by the "every activity runs" test.
 
 Not ported on purpose: Android's "remote latency" player setting (only for scripts sent to the phone by other apps).

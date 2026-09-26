@@ -42,7 +42,8 @@ export function buildControls(container, controls, onPersist) {
       const row = el('label', `switch-row${c.heading ? ' heading' : ''}`);
       const box = el('input', 'switch');
       box.type = 'checkbox';
-      box.onchange = () => { c.set(box.checked); if (c.persist) onPersist(); };
+      // Refresh at once: a switch usually enables other controls, and output ticks may not be running
+      box.onchange = () => { c.set(box.checked); if (c.persist) onPersist(); refresh(); };
       row.append(el('span', null, c.label), box);
       container.append(row);
       refreshers.push(() => { box.checked = c.get(); });
@@ -94,6 +95,17 @@ export function buildControls(container, controls, onPersist) {
         target.disabled = rate.disabled = disabled(c);
         row.classList.toggle('disabled', target.disabled);
       });
+    } else if (c.type === 'buttons') {
+      const row = el('div', 'button-row');
+      const buttons = c.buttons.map(([label, onClick]) => {
+        const b = el('button', 'btn-tonal small', label);
+        b.type = 'button';
+        b.onclick = onClick;
+        return b;
+      });
+      row.append(...buttons);
+      container.append(row);
+      refreshers.push(() => { for (const b of buttons) b.disabled = disabled(c); });
     }
   }
 
