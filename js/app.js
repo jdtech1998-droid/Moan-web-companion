@@ -13,6 +13,7 @@ import { FUNSCRIPT_DEFAULTS, AXIS_NAMES, isRotationAxis } from './funscript.js';
 import { ActivityHost, ACTIVITY_TYPES, ACTIVITY_OPTION_DEFAULTS, DEFAULT_EXCLUDED } from './activities.js';
 import { buildControls } from './controls.js';
 import { CALIBRATION_DEFAULTS, applyCalibration } from './calibration.js';
+import { PawPrints, PAW_ACTIONS, PAW_DEFAULTS, actionsFor } from './pawprints.js';
 import { icon } from './icons.js';
 import { Player, Recorder, openFile, writeHWL, PLAYER_DEFAULTS, SPEED_RANGE as PLAYBACK_SPEED_RANGE, FINE_TUNE_RANGE } from './player.js';
 
@@ -31,6 +32,7 @@ const DEFAULT_SETTINGS = {
   player: { ...PLAYER_DEFAULTS },
   funscript: { ...FUNSCRIPT_DEFAULTS },
   calibration: { ...CALIBRATION_DEFAULTS },
+  paw: { ...PAW_DEFAULTS }, // what each Paw Prints button does
   showFunscriptMeters: true,
   activity: { changeProbability: 0, excluded: [...DEFAULT_EXCLUDED], options: { ...ACTIVITY_OPTION_DEFAULTS } },
   balance: { frequencyBalanceA: 200, frequencyBalanceB: 200, intensityBalanceA: 0, intensityBalanceB: 0 },
@@ -47,6 +49,7 @@ function loadSettings() {
     return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance }, manual: { ...DEFAULT_SETTINGS.manual, ...saved.manual },
       player: { ...DEFAULT_SETTINGS.player, ...saved.player }, funscript: { ...DEFAULT_SETTINGS.funscript, ...savedFunscript },
       calibration: { ...DEFAULT_SETTINGS.calibration, ...(oldCurve != null && { positionalEffectCurve: oldCurve }), ...saved.calibration },
+      paw: { ...DEFAULT_SETTINGS.paw, ...saved.paw },
       activity: { ...DEFAULT_SETTINGS.activity, ...saved.activity, options: { ...DEFAULT_SETTINGS.activity.options, ...saved.activity?.options } } };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
@@ -73,6 +76,7 @@ const POPUP_MS = 4000; // how long a non-safety pop-up stays up on another tab
 const AUTO_CHANGE_TICKS = 300; // 30s
 
 const coyote = new Coyote3();
+const paw = new PawPrints();
 const generator = new Generator();
 if (Array.isArray(settings.generator) && settings.generator.length === 2) generator.channels = settings.generator;
 const stream = new RemoteStream();
@@ -448,6 +452,27 @@ function driverEmergencyStop() {
   }
 }
 
+/** The page's E-STOP: a Rider's also tells the Driver; otherwise power goes to 0 and playback stops. */
+function emergencyStop() {
+  if (riderActive()) riderEmergencyStop();
+  else driverEmergencyStop();
+}
+
+/** Carries out Paw Prints button actions, as Howl's PawPrintsDevice.perform. */
+function pawPressed(ids) {
+  for (const action of actionsFor(settings.paw, ids)) {
+    if (action === 'E_STOP') {
+      emergencyStop();
+    } else if (action === 'MUTE_TOGGLE') {
+      state.muted = !state.muted;
+      renderMute();
+    } else if (action === 'POWER_UP' || action === 'POWER_DOWN') {
+      const delta = action === 'POWER_UP' ? settings.step : -settings.step;
+      for (const ch of [0, 1]) adjustPower(ch, state.power[ch] + delta);
+    }
+  }
+}
+
 function addFeedback(preset) {
   const now = Date.now();
   const seq = ++state.feedSeq;
@@ -606,13 +631,31 @@ function renderDevice() {
   if (!bluetoothSupported()) {
     $('deviceStatus').textContent = 'No Bluetooth in this browser';
     button.disabled = true;
+    renderPaw();
     return;
   }
-  const status = coyote.ready ? `Coyote 3${coyote.battery != null ? ` · ${coyote.battery}%` : ''}` : (coyote.statusText ?? 'Disconnected');
+  let status = coyote.ready ? `Coyote 3${coyote.battery != null ? ` · ${coyote.battery}%` : ''}` : (coyote.statusText ?? 'Disconnected');
+  if (paw.ready) {
+    // "Disconnected · Paw" would read as the Paw being disconnected
+    if (status === 'Disconnected') status = 'No Coyote';
+    status += ` · Paw${paw.battery != null ? ` ${paw.battery}%` : ''}`;
+  }
   $('deviceStatus').textContent = status;
   label.textContent = coyote.ready ? 'Disconnect' : 'Connect';
   button.disabled = coyote.busy === true;
+  renderPaw();
 }
+
+function renderPaw() {
+  const supported = bluetoothSupported();
+  $('pawStatus').textContent = !supported ? 'No Bluetooth in this browser'
+    : paw.ready ? `Connected${paw.battery != null ? ` · ${paw.battery}%` : ''}` : (paw.statusText ?? 'Disconnected');
+  $('pawConnect').textContent = paw.ready ? 'Disconnect' : 'Connect';
+  $('pawConnect').disabled = !supported || paw.busy === true;
+  for (const [id, key] of PAW_SELECTS) $(id).value = settings.paw[key];
+}
+
+const PAW_SELECTS = [['pawTop', 'top'], ['pawLeft', 'left'], ['pawRight', 'right']];
 
 function renderRemote() {
   const active = !!state.session;
@@ -1034,12 +1077,12 @@ function renderAll() {
 }
 
 let toastTimer = null;
-function toast(text) {
+function toast(text, ms = 2800) {
   const t = $('toast');
   t.textContent = text;
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 2800);
+  toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
 // ---- Wiring -------------------------------------------------------------------------------------
@@ -1230,7 +1273,7 @@ function wire() {
   };
   $('riderMaxA').oninput = e => setRiderMax(0, Number(e.target.value));
   $('riderMaxB').oninput = e => setRiderMax(1, Number(e.target.value));
-  $('estopBtn').onclick = () => (riderActive() ? riderEmergencyStop() : driverEmergencyStop());
+  $('estopBtn').onclick = emergencyStop;
   buildFeedbackGrid();
 
   $('genRandom').onclick = () => { generator.randomize(); saveSettings(); renderGenerator(); };
@@ -1298,6 +1341,35 @@ function wire() {
       renderGeneratorHint();
     }
   };
+  for (const [id, key] of PAW_SELECTS) {
+    $(id).replaceChildren(...PAW_ACTIONS.map(([value, label]) => Object.assign(document.createElement('option'), { value, textContent: label })));
+    $(id).onchange = e => { settings.paw[key] = e.target.value; saveSettings(); };
+  }
+  $('pawConnect').onclick = async () => {
+    if (paw.ready) {
+      paw.disconnect();
+      return;
+    }
+    paw.busy = true;
+    renderPaw();
+    try {
+      await paw.connect();
+    } catch (e) {
+      paw.statusText = 'Disconnected';
+      if (e.name !== 'NotFoundError') toast(e.message);
+      paw.expectDisconnect = true;
+      paw.device?.gatt?.disconnect();
+      paw.handleDisconnect();
+    } finally {
+      paw.busy = false;
+      renderDevice();
+    }
+  };
+  paw.onStatus = s => { paw.statusText = s; renderDevice(); };
+  paw.onBattery = () => renderDevice();
+  paw.onPressed = pawPressed;
+  // A Paw that drops is a dead emergency stop: say so plainly and for longer than a normal toast
+  paw.onLost = reason => toast(`Paw Prints ${reason}: its buttons no longer work.`, 10000);
   coyote.onStatus = s => { coyote.statusText = s; renderDevice(); renderGeneratorHint(); };
   coyote.onBattery = () => renderDevice();
   coyote.onDevicePower = (a, b) => {

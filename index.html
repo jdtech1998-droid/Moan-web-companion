@@ -328,6 +328,18 @@
           <button class="btn-text" id="calReset">Reset calibration</button>
         </div>
         <div class="card">
+          <div class="card-title">Paw Prints</div>
+          <p class="muted small">A wireless button from DG-LAB. Its buttons can act as an emergency stop, mute, or power up and down. To connect, hold a button on the Paw Prints until its lights blink white and blue, then press Connect.</p>
+          <div class="setting">
+            <span id="pawStatus">Disconnected</span>
+            <button class="btn-tonal small" id="pawConnect">Connect</button>
+          </div>
+          <p class="muted small">Choose what each button on the Paw Prints does. Test your emergency stop before you rely on it.</p>
+          <div class="setting"><span>Top button</span><select id="pawTop"></select></div>
+          <div class="setting"><span>Left button</span><select id="pawLeft"></select></div>
+          <div class="setting"><span>Right button</span><select id="pawRight"></select></div>
+        </div>
+        <div class="card">
           <div class="card-title">Coyote 3</div>
           <div class="setting"><span>Frequency balance A</span><input type="number" min="0" max="255" id="setFbA"></div>
           <div class="setting"><span>Frequency balance B</span><input type="number" min="0" max="255" id="setFbB"></div>
