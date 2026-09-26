@@ -328,6 +328,39 @@
           <button class="btn-text" id="calReset">Reset calibration</button>
         </div>
         <div class="card">
+          <div class="card-title">Tweaks</div>
+          <p class="muted small">Advanced settings for tinkerers. Applied to your Coyote only, before calibration. An amplitude feel above 1 makes quiet parts stronger.</p>
+          <div class="card-subtitle">Amplitude adjustments</div>
+          <label class="slider-setting">
+            <span>Amplitude feel A</span><output id="twAmpFeelAOut"></output>
+            <input type="range" id="twAmpFeelA" min="0.5" max="2" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Amplitude feel B</span><output id="twAmpFeelBOut"></output>
+            <input type="range" id="twAmpFeelB" min="0.5" max="2" step="0.01">
+          </label>
+          <div class="card-subtitle">Frequency adjustments</div>
+          <label class="slider-setting">
+            <span>Frequency feel A</span><output id="twFreqFeelAOut"></output>
+            <input type="range" id="twFreqFeelA" min="0.5" max="2" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Frequency feel B</span><output id="twFreqFeelBOut"></output>
+            <input type="range" id="twFreqFeelB" min="0.5" max="2" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Flat frequency adjust A</span><output id="twFreqAdjAOut"></output>
+            <input type="range" id="twFreqAdjA" min="-1" max="1" step="0.01">
+          </label>
+          <label class="slider-setting">
+            <span>Flat frequency adjust B</span><output id="twFreqAdjBOut"></output>
+            <input type="range" id="twFreqAdjB" min="-1" max="1" step="0.01">
+          </label>
+          <label class="switch-row"><span>Invert frequencies A</span><input type="checkbox" class="switch" id="twInvertA"></label>
+          <label class="switch-row"><span>Invert frequencies B</span><input type="checkbox" class="switch" id="twInvertB"></label>
+          <button class="btn-text" id="twReset">Reset tweaks</button>
+        </div>
+        <div class="card">
           <div class="card-title">Paw Prints</div>
           <p class="muted small">A wireless button from DG-LAB. Its buttons can act as an emergency stop, mute, or power up and down. To connect, hold a button on the Paw Prints until its lights blink white and blue, then press Connect.</p>
           <div class="setting">

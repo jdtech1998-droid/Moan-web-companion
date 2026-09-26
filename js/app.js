@@ -12,7 +12,7 @@ import { Touchpad } from './touchpad.js';
 import { FUNSCRIPT_DEFAULTS, AXIS_NAMES, isRotationAxis } from './funscript.js';
 import { ActivityHost, ACTIVITY_TYPES, ACTIVITY_OPTION_DEFAULTS, DEFAULT_EXCLUDED } from './activities.js';
 import { buildControls } from './controls.js';
-import { CALIBRATION_DEFAULTS, applyCalibration } from './calibration.js';
+import { CALIBRATION_DEFAULTS, TWEAK_DEFAULTS, applyCalibration, applyTweaks } from './calibration.js';
 import { PawPrints, PAW_ACTIONS, PAW_DEFAULTS, actionsFor } from './pawprints.js';
 import { icon } from './icons.js';
 import { Player, Recorder, openFile, writeHWL, PLAYER_DEFAULTS, SPEED_RANGE as PLAYBACK_SPEED_RANGE, FINE_TUNE_RANGE } from './player.js';
@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS = {
   player: { ...PLAYER_DEFAULTS },
   funscript: { ...FUNSCRIPT_DEFAULTS },
   calibration: { ...CALIBRATION_DEFAULTS },
+  tweaks: { ...TWEAK_DEFAULTS },
   paw: { ...PAW_DEFAULTS }, // what each Paw Prints button does
   showFunscriptMeters: true,
   activity: { changeProbability: 0, excluded: [...DEFAULT_EXCLUDED], options: { ...ACTIVITY_OPTION_DEFAULTS } },
@@ -49,6 +50,7 @@ function loadSettings() {
     return { ...structuredClone(DEFAULT_SETTINGS), ...saved, balance: { ...DEFAULT_SETTINGS.balance, ...saved.balance }, manual: { ...DEFAULT_SETTINGS.manual, ...saved.manual },
       player: { ...DEFAULT_SETTINGS.player, ...saved.player }, funscript: { ...DEFAULT_SETTINGS.funscript, ...savedFunscript },
       calibration: { ...DEFAULT_SETTINGS.calibration, ...(oldCurve != null && { positionalEffectCurve: oldCurve }), ...saved.calibration },
+      tweaks: { ...DEFAULT_SETTINGS.tweaks, ...saved.tweaks },
       paw: { ...DEFAULT_SETTINGS.paw, ...saved.paw },
       activity: { ...DEFAULT_SETTINGS.activity, ...saved.activity, options: { ...DEFAULT_SETTINGS.activity.options, ...saved.activity?.options } } };
   } catch {
@@ -219,9 +221,10 @@ function tick() {
   }
 
   // Local Coyote plays the Rider stream or the local generator. A Driver's waves are only felt by the Rider.
-  // Calibration applies here only, as in Howl's device outputs: meters, recorder and Driver stream stay uncalibrated.
+  // Tweaks then calibration apply here only, as in Howl's device outputs: meters, recorder and Driver stream stay unadjusted.
   if (coyote.ready) {
-    const local = driverActive() ? pulses.map(() => SILENT) : pulses.map(p => applyCalibration(p, settings.calibration));
+    const local = driverActive() ? pulses.map(() => SILENT)
+      : pulses.map(p => applyCalibration(applyTweaks(p, settings.tweaks), settings.calibration));
     const [fMin, fMax] = settings.freqRange;
     coyote.sendPulses(state.power[0], state.power[1], local.map(p => ({
       freqAHz: fMin + (fMax - fMin) * p.freqA,
@@ -1045,6 +1048,21 @@ function renderSettings() {
   $('setIbB').value = settings.balance.intensityBalanceB;
   $('setRelay').value = settings.relayUrl;
   renderCalibration();
+  renderTweaks();
+}
+
+const TWEAK_SLIDERS = [
+  ['twAmpFeelA', 'amplitudeFeelA'], ['twAmpFeelB', 'amplitudeFeelB'], ['twFreqFeelA', 'frequencyFeelA'],
+  ['twFreqFeelB', 'frequencyFeelB'], ['twFreqAdjA', 'frequencyAdjustA'], ['twFreqAdjB', 'frequencyAdjustB'],
+];
+const TWEAK_SWITCHES = [['twInvertA', 'frequencyInvertA'], ['twInvertB', 'frequencyInvertB']];
+
+function renderTweaks() {
+  for (const [id, key] of TWEAK_SLIDERS) {
+    $(id).value = settings.tweaks[key];
+    $(`${id}Out`).textContent = settings.tweaks[key].toFixed(2);
+  }
+  for (const [id, key] of TWEAK_SWITCHES) $(id).checked = settings.tweaks[key];
 }
 
 const CALIBRATION_SLIDERS = [
@@ -1318,6 +1336,16 @@ function wire() {
     saveSettings();
     renderCalibration();
     refreshActivityControls();
+  };
+  for (const [id, key] of TWEAK_SLIDERS) {
+    $(id).oninput = e => { settings.tweaks[key] = Number(e.target.value); renderTweaks(); };
+    $(id).onchange = () => saveSettings();
+  }
+  for (const [id, key] of TWEAK_SWITCHES) $(id).onchange = e => { settings.tweaks[key] = e.target.checked; saveSettings(); };
+  $('twReset').onclick = () => {
+    Object.assign(settings.tweaks, TWEAK_DEFAULTS);
+    saveSettings();
+    renderTweaks();
   };
 
   $('connectBtn').onclick = async () => {
